@@ -3,6 +3,10 @@ package test.fvd;
 import java.io.Serializable;
 
 import org.omg.CORBA.ORB;
+import test.fvd.Abstract;
+import test.fvd.Bounceable;
+import test.fvd.Bouncer;
+import test.fvd.Value;
 
 public class BouncerImpl implements Bouncer {
     

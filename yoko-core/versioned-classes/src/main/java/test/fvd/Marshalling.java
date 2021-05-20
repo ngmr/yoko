@@ -2,9 +2,10 @@ package test.fvd;
 
 import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import static test.fvd.Sets.difference;
-import static test.fvd.Sets.format;
-import static test.fvd.Sets.intersection;
+import static org.junit.jupiter.api.Assertions.fail;
+import static testify.util.Sets.difference;
+import static testify.util.Sets.format;
+import static testify.util.Sets.intersection;
 
 import java.io.ObjectStreamField;
 import java.lang.annotation.Annotation;
@@ -50,6 +51,7 @@ public enum Marshalling {
     }
 
     public Marshalling select() {
+        System.out.printf("### %s selecting marshalling version %s%n", Marshalling.class.getClassLoader(), this);
         if (IN_USE.compareAndSet(null, this)) return this;
         Assert.fail("Attempt to select MarshallingConfiguration " + this + " when " + IN_USE.get() + " was already selected");
         throw new Error("Unreachable code");
@@ -57,36 +59,50 @@ public enum Marshalling {
 
     static Marshalling getCurrent() {
         Marshalling current = IN_USE.get();
-        Assert.assertNotNull("A " + Marshalling.class.getSimpleName() + " setting should have been selected.", current);
+        if (null == current) {
+            System.err.printf("!!! %s has no marshalling version selected %n", Marshalling.class.getClassLoader());
+            fail("A " + Marshalling.class.getSimpleName() + " setting should have been selected.");
+        }
         return current;
     }
 
     public static ObjectStreamField[] computeSerialPersistentFields(Class<?> type) {
-        validate(type);
+        try {
+            validate(type);
 
-        // check what type of marshalling is configured
-        Marshalling currentConfig = getCurrent();
-        System.out.println(currentConfig + " marshalling selected");
-        if (currentConfig == DEFAULT_VERSION) {
-            System.out.println("Using null for serialPersistentFields for type: " + type);
-            // we can coerce default serialization semantics by making the serialPersistentFields null
-            return null;
-        }
-
-        System.out.println("Constructing serialPersistentFields for type: " + type);
-
-        // build an ordered set of object stream fields
-        SortedSet<ObjectStreamField> result = new TreeSet<>(SerializationOrdering.INSTANCE);
-        for(Field f : type.getDeclaredFields()) {
-            if (Modifier.isStatic(f.getModifiers()) ||
-                    getAllAnnoTypes(f).contains(currentConfig.skipAnnotationType)) {
-                System.out.println("Excluding field from serialPersistentFields: " + f);
-            } else {
-                System.out.println("Adding field to serialPersistentFields: "+ f);
-                result.add(new ObjectStreamField(f.getName(), f.getType()));
+            // check what type of marshalling is configured
+            Marshalling currentConfig = getCurrent();
+            System.out.println(currentConfig + " marshalling selected");
+            if (currentConfig == DEFAULT_VERSION) {
+                System.out.println("Using null for serialPersistentFields for type: " + type);
+                // we can coerce default serialization semantics by making the serialPersistentFields null
+                return null;
             }
+
+            System.out.println("Constructing serialPersistentFields for type: " + type);
+
+            // build an ordered set of object stream fields
+            SortedSet<ObjectStreamField> result = new TreeSet<>(SerializationOrdering.INSTANCE);
+            for (Field f : type.getDeclaredFields()) {
+                if (Modifier.isStatic(f.getModifiers()) ||
+                        getAllAnnoTypes(f).contains(currentConfig.skipAnnotationType)) {
+                    System.out.println("Excluding field from serialPersistentFields: " + f);
+                } else {
+                    System.out.println("Adding field to serialPersistentFields: " + f);
+                    result.add(new ObjectStreamField(f.getName(), f.getType()));
+                }
+            }
+            return result.toArray(new ObjectStreamField[result.size()]);
+        } catch (RuntimeException|Error e) {
+            System.err.printf("### Marshalling calculation failed with exception " + e);
+            e.printStackTrace();
+            throw e;
         }
-        return result.toArray(new ObjectStreamField[result.size()]);
+    }
+
+    public static void validate() {
+        Object o = getCurrent();
+        System.out.printf("### %s is using marshalling version %s%n", Marshalling.class.getClassLoader(), o);
     }
 
     private static Set<Class<? extends Annotation>> getAllAnnoTypes(Field f) {

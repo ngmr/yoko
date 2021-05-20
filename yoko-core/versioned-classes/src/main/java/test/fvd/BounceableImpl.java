@@ -1,7 +1,7 @@
 package test.fvd;
 
-import static test.fvd.Sets.format;
-import static test.fvd.Sets.union;
+import static testify.util.Sets.format;
+import static testify.util.Sets.union;
 
 import java.io.ObjectStreamField;
 import java.lang.reflect.Field;
@@ -9,16 +9,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.junit.Assert;
-
-class NonSerializableSuper {
-    final boolean isLocal;
-    NonSerializableSuper() { // invoked by serialization
-        isLocal = false;
-    }
-    NonSerializableSuper(String name) {
-        isLocal = true;
-    }
-}
 
 public class BounceableImpl extends NonSerializableSuper implements Bounceable {
     private static final long serialVersionUID = 1L;

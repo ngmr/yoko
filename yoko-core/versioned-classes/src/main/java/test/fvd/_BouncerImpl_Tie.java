@@ -25,7 +25,6 @@ import org.omg.PortableServer.POAPackage.ServantNotActive;
 import org.omg.PortableServer.POAPackage.WrongPolicy;
 
 public class _BouncerImpl_Tie extends org.omg.PortableServer.Servant implements Tie {
-    
     private BouncerImpl target = null;
     
     private static final String[] _type_ids = {

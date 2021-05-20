@@ -1,3 +1,9 @@
+
+configurations {
+  versioned.transitive = false
+  testCompileOnly.extendsFrom versioned
+}
+
 dependencies {
   // depend on the Yoko spec jars
   spec project(':yoko-rmi-spec')
@@ -8,6 +14,7 @@ dependencies {
   // use shared test utilities
   testCompile project(":yoko-util").sourceSets.test.output
   testCompile project(":yoko-rmi-impl").sourceSets.test.output
+  versioned project("versioned-classes")
 }
 
 jar {
