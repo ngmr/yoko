@@ -1,0 +1,12 @@
+dependencies {
+  // compile against Yoko implementation
+  compile project(":yoko-rmi-impl")
+  // pull in junit and friends
+  compile 'junit:junit:4.12'
+  compile 'org.mockito:mockito-core:2.22.0'
+  compile "org.hamcrest:hamcrest:2.1"
+  compile "org.junit.jupiter:junit-jupiter:5.5.1"
+  // use shared test utilities
+  compile project(":yoko-util").sourceSets.test.output
+  compile project(":yoko-rmi-impl").sourceSets.test.output
+}
