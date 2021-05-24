@@ -27,4 +27,6 @@ jar {
 
 test {
   exclude '**/Abstract*'
+  // Put the versioned classes jar URLs into a system property for use within the test
+  systemProperty "versioned.classpath", configurations.versioned.collect({it.toURI().toString()}).join(" ")
 }

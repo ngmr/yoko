@@ -32,13 +32,6 @@ def getGitHash(length) {
 def testProjects = "osgi util rmi-impl core test".split(" ").collect{s->project(":yoko-" + s)}
 def shipProjects = "osgi util spec-corba rmi-spec rmi-impl core jdk-supplement".split(" ").collect{s->project(":yoko-" + s)}
 
-/* Configuration for all projects (including this parent) */
-allprojects  {
-  apply plugin: 'maven-publish'
-  group = 'org.apache.yoko'
-  version = '1.5.0.' + getGitHash(10)
-}
-
 /* Standard configuration for each subproject */
 subprojects {
   apply plugin: 'java'
@@ -112,7 +105,7 @@ configure(testProjects) {
 
       // set options for log level DEBUG and INFO
       debug {
-        events "skipped", "failed"//, "started", "passed", "standardOut", "standardError"
+        events "skipped", "failed" //, "started", "passed", "standardOut", "standardError"
         exceptionFormat "full"
       }
       info.events = debug.events
@@ -144,6 +137,9 @@ configure(testProjects) {
 /* Standard configuration for subprojects with shippable outputs */
 configure(shipProjects) {
   apply plugin: 'osgi'
+  apply plugin: 'maven-publish'
+  group = 'org.apache.yoko'
+  version = '1.5.0.' + getGitHash(10)
   publishing {
     publications {
       maven(MavenPublication) {
