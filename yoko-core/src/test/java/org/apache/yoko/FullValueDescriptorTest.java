@@ -87,7 +87,7 @@ public class FullValueDescriptorTest {
     }
 
     @Test
-    @Logging
+    @Logging("yoko.verbose")
     public void testFVD(ORB orb, Bus bus) throws Exception {
         initClient(orb, bus);
     }
