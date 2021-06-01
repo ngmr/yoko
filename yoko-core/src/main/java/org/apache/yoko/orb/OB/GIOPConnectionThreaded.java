@@ -321,9 +321,9 @@ final class GIOPConnectionThreaded extends GIOPConnection {
             MessageType type = valueOf(buffer.readByte());
             int size = littleEndian ? buffer.readInt_LE() : buffer.readInt();
             String reqId = "";
-            if (type.requestIdAlwaysAtIndex12(major, minor)) reqId = " REQUEST ID=" + (littleEndian ? buffer.readInt_LE() : buffer.readInt());
-            String frag = type.fragmentable ? " FRAGMENT TO FOLLOW=" + fragmentToFollow : "";
-            final String msg = "GIOP " + major + "." + minor + " " + type + " MESSAGE " + size + " octets" + reqId + frag;
+            if (type.requestIdAlwaysAtIndex12(major, minor)) reqId = " REQUEST_ID=" + (littleEndian ? buffer.readInt_LE() : buffer.readInt());
+            String frag = type.fragmentable ? " FRAGMENT_TO_FOLLOW=" + fragmentToFollow : "";
+            final String msg = "GIOP " + major + "." + minor + " " + type + " MESSAGE_SIZE=" + size + reqId + frag;
             return msg;
         }
 
