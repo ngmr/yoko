@@ -1,27 +1,29 @@
 package org.apache.yoko.util.cmsf;
 
-import javax.rmi.CORBA.Util;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 import static java.security.AccessController.doPrivileged;
+import static java.util.Arrays.asList;
+import static java.util.Collections.reverse;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableSet;
+import static java.util.Objects.requireNonNull;
+import static javax.rmi.CORBA.Util.loadClass;
 import static org.apache.yoko.util.PrivilegedActions.GET_CONTEXT_CLASS_LOADER;
 
 public enum RepIds {
     ;
 
     public interface Query {
-        public Query suffix(String suffix);
-        public Query codebase(String codebase);
-        public<T> Class<T> toClass();
-        public String toClassName();
+        Query suffix(String suffix);
+        Query codebase(String codebase);
+        <T> Class<T> toClass();
+        String toClassName();
     }
 
     private static final class QueryImpl implements Query {
@@ -30,7 +32,7 @@ public enum RepIds {
         public final String codebase;
 
         private QueryImpl(String repid) {
-            this(Objects.requireNonNull(repid), "", null);
+            this(requireNonNull(repid), "", null);
         }
 
         private QueryImpl(String repid, String suffix, String codebase) {
@@ -41,7 +43,7 @@ public enum RepIds {
 
         @Override
         public QueryImpl suffix(String suffix) {
-            return new QueryImpl(repid, Objects.requireNonNull(suffix), codebase);
+            return new QueryImpl(repid, requireNonNull(suffix), codebase);
         }
 
         @Override
@@ -50,8 +52,8 @@ public enum RepIds {
         }
 
         @Override
-        public<T> Class<T> toClass() {
-            return (Class<T>)RepIds.toClass(this);
+        public <T> Class<T> toClass() {
+            return RepIds.toClass(this);
         }
 
         @Override
@@ -66,35 +68,36 @@ public enum RepIds {
         return new QueryImpl(repid);
     }
 
-    private static Class<?> toClass(final QueryImpl query) {
+    private static <T> Class<T> toClass(final QueryImpl query) {
         final String repid = query.repid;
         final String suffix = query.suffix;
         final String codebase = query.codebase;
         if (LOGGER.isLoggable(Level.FINE))
             LOGGER.fine(String.format("Searching for class from repid \"%s\" using suffix \"%s\"", repid, suffix));
-        Class<?> result = null;
 
         //Special case IDL:omg.org/CORBA/WStringValue:1.0
-        if ("IDL:omg.org/CORBA/WStringValue:1.0".equals(repid) && "".equals(suffix)) return String.class;
+        if ("IDL:omg.org/CORBA/WStringValue:1.0".equals(repid) && "".equals(suffix)) return generify(String.class);
 
         final String className = toClassName(query);
 
         if (LOGGER.isLoggable(Level.FINE))
             LOGGER.fine(String.format("Class name from repid \"%s\" using suffix \"%s\" is \"%s\"", repid, suffix, className));
 
-        if (className != null) {
+        if (null != className) {
             try {
                 // get the appropriate class for the loading.
-                result = Util.loadClass(className, codebase, doPrivileged(GET_CONTEXT_CLASS_LOADER));
+                return generify(loadClass(className, codebase, doPrivileged(GET_CONTEXT_CLASS_LOADER)));
             } catch (ClassNotFoundException ex) {
                 if (LOGGER.isLoggable(Level.FINE))
                     LOGGER.fine(String.format("Class \"%s\" not found", className));
                 // ignore
             }
         }
-
-        return result;
+        return null;
     }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Class<T> generify(Class<?> clz) { return (Class<T>)clz; }
 
     private static final Pattern dotPattern = Pattern.compile(Pattern.quote("."));
     private static final Pattern slashPattern = Pattern.compile(Pattern.quote("/"));
@@ -106,17 +109,15 @@ public enum RepIds {
         //Special case IDL:omg.org/CORBA/WStringValue:1.0
         if ("IDL:omg.org/CORBA/WStringValue:1.0".equals(repid) && "".equals(suffix)) return String.class.getName();
 
-        String result = null;
+        final String result;
         if (repid.startsWith("IDL:")) {
             result = idlToClassName(repid);
         } else if (repid.startsWith("RMI:")) {
             result = rmiToClassName(repid);
-        }
-        if (result != null) {
-            result += suffix;
-            result = removeUnicodeEscapes(result);
-        }
-        return result;
+        } else return null;
+
+        if (null == result) return null;
+        return removeUnicodeEscapes(result + suffix);
     }
 
     private static String rmiToClassName(final String repid) {
@@ -141,7 +142,7 @@ public enum RepIds {
             if (firstSlash > 0) {
                 String prefix = s.substring(0, firstSlash);
                 String[] elems = dotPattern.split(prefix);
-                Collections.reverse(Arrays.asList(elems)); //reverses the order in the underlying array - i.e. 'elems'
+                reverse(asList(elems)); //reverses the order in the underlying array - i.e. 'elems'
                 for (String elem: elems) {
                     sb.append(fixName(elem)).append('.');
                 }
@@ -175,7 +176,7 @@ public enum RepIds {
         int start = 0;
 
         while (escape >= 0) {
-            out.append(in.substring(start, escape));
+            out.append(in, start, escape);
             // step over the escape sequence
             escape += 2;
 
@@ -243,7 +244,7 @@ public enum RepIds {
             "wait", "while");
 
     private static Set<String> createStringSet(String...strings) {
-        return Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(strings)));
+        return unmodifiableSet(new HashSet<>(asList(strings)));
     }
 
     private static final List<String> reservedSuffixes = createStringList(
@@ -251,7 +252,7 @@ public enum RepIds {
             "POATie", "Package", "ValueFactory");
 
     private static List<String> createStringList(String...strings) {
-        return Collections.unmodifiableList(Arrays.asList(strings));
+        return unmodifiableList(asList(strings));
     }
 
     private static String fixName(String name) {
@@ -266,23 +267,23 @@ public enum RepIds {
         //
         // Prepend an underscore for each of the reserved suffixes
         //
-        String result = name;
+        StringBuilder result = new StringBuilder(name);
         String curr = name;
 
         OUTER_LOOP: while (true) {
             for (String reservedSuffix: reservedSuffixes) {
                 if (curr.endsWith(reservedSuffix)) {
-                    result = "_" + result;
+                    result.insert(0, "_");
 
                     int currLength = curr.length();
                     int resLength = reservedSuffix.length();
                     if (currLength == resLength)
-                        return result;
+                        return result.toString();
                     curr = curr.substring(0, currLength - resLength);
                     continue OUTER_LOOP;
                 }
             }
-            return result;
+            return result.toString();
         }
     }
 }
