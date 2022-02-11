@@ -120,7 +120,7 @@ public final class Server extends TestBase {
                 assertTrue(factory != null);
 
                 ServerRequestInterceptor interceptor = new ServerTestInterceptor_impl(orb, factory);
-                ServerORBInitializer_impl.serverProxyManager.setInterceptor(0, interceptor);
+                ServerORBInitializer_impl.serverProxyManager.setInterceptor(2, interceptor);
 
                 System.out.println("About to write refs");
                 

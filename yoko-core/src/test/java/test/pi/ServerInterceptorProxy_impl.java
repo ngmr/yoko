@@ -17,37 +17,35 @@
 
 package test.pi;
 
-import org.omg.PortableInterceptor.*;
+import org.omg.CORBA.LocalObject;
+import org.omg.PortableInterceptor.ForwardRequest;
+import org.omg.PortableInterceptor.ServerRequestInfo;
+import org.omg.PortableInterceptor.ServerRequestInterceptor;
+import test.common.TestException;
 
-final class ServerInterceptorProxy_impl extends org.omg.CORBA.LocalObject
-        implements org.omg.PortableInterceptor.ServerRequestInterceptor {
-    //
-    // From TestBase (no multiple inheritance)
-    //
+import java.util.concurrent.atomic.AtomicInteger;
+
+final class ServerInterceptorProxy_impl extends LocalObject
+        implements ServerRequestInterceptor, AutoCloseable {
+    private static final AtomicInteger nextId = new AtomicInteger();
+    private final String name = String.format("%s#%04x", this.getClass().getName(), nextId.getAndIncrement());
+
     public static void TEST(boolean expr) {
-        if (!expr)
-            throw new test.common.TestException();
+        if (!expr) throw new TestException();
     }
 
-    private ServerRequestInterceptor interceptor_;
+    private ServerRequestInterceptor interceptor;
 
-    private int count_;
+    private final AtomicInteger activeCalls = new AtomicInteger();
 
-    protected void finalize() throws Throwable {
-        TEST(count_ == 0);
-
-        super.finalize();
+    public void close() {
+        TEST(0 == activeCalls.get());
     }
 
-    //
-    // IDL to Java Mappping
-    //
+    // IDL to Java Mapping
 
     public String name() {
-        if (interceptor_ != null)
-            return interceptor_.name();
-
-        return "";
+        return name;
     }
 
     public void destroy() {
@@ -55,41 +53,36 @@ final class ServerInterceptorProxy_impl extends org.omg.CORBA.LocalObject
 
     public void receive_request_service_contexts(ServerRequestInfo ri)
             throws ForwardRequest {
-        TEST(count_ >= 0);
-        if (interceptor_ != null)
-            interceptor_.receive_request_service_contexts(ri);
-        count_++;
+        TEST(0 <= activeCalls.getAndIncrement());
+        if (null == interceptor) return;
+        interceptor.receive_request_service_contexts(ri);
     }
 
     public void receive_request(ServerRequestInfo ri) throws ForwardRequest {
-        TEST(count_ > 0);
-
-        if (interceptor_ != null)
-            interceptor_.receive_request(ri);
+        TEST(0 < activeCalls.get());
+        if (null == interceptor) return;
+        interceptor.receive_request(ri);
     }
 
     public void send_reply(ServerRequestInfo ri) {
-        TEST(count_ > 0);
-        count_--;
-        if (interceptor_ != null)
-            interceptor_.send_reply(ri);
+        TEST(0 < activeCalls.getAndDecrement());
+        if (null == interceptor) return;
+        interceptor.send_reply(ri);
     }
 
     public void send_other(ServerRequestInfo ri) throws ForwardRequest {
-        TEST(count_ > 0);
-        count_--;
-        if (interceptor_ != null)
-            interceptor_.send_other(ri);
+        TEST(0 < activeCalls.getAndDecrement());
+        if (null == interceptor) return;
+        interceptor.send_other(ri);
     }
 
     public void send_exception(ServerRequestInfo ri) throws ForwardRequest {
-        TEST(count_ > 0);
-        count_--;
-        if (interceptor_ != null)
-            interceptor_.send_exception(ri);
+        TEST(0 < activeCalls.getAndDecrement());
+        if (null == interceptor) return;
+        interceptor.send_exception(ri);
     }
 
-    void _OB_changeInterceptor(ServerRequestInterceptor interceptor) {
-        interceptor_ = interceptor;
+    void changeInterceptor(ServerRequestInterceptor interceptor) {
+        this.interceptor = interceptor;
     }
 }

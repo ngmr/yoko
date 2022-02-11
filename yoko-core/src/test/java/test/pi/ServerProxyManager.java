@@ -17,37 +17,39 @@
 
 package test.pi;
 
-import org.apache.yoko.util.Assert;
-import org.omg.PortableInterceptor.*;
+import org.omg.PortableInterceptor.ORBInitInfo;
+import org.omg.PortableInterceptor.ORBInitInfoPackage.DuplicateName;
+import org.omg.PortableInterceptor.ServerRequestInterceptor;
 
-final class ServerProxyManager {
-    private ServerInterceptorProxy_impl[] p_ = new ServerInterceptorProxy_impl[3];
+import java.util.List;
+
+import static java.util.Collections.unmodifiableList;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Stream.generate;
+
+final class ServerProxyManager implements AutoCloseable {
+    private final List<ServerInterceptorProxy_impl> interceptorProxies =
+            unmodifiableList(generate(ServerInterceptorProxy_impl::new)
+                    .limit(3)
+                    .collect(toList()));
 
     ServerProxyManager(ORBInitInfo info) {
-        p_[0] = new ServerInterceptorProxy_impl();
-        p_[1] = new ServerInterceptorProxy_impl();
-        p_[2] = new ServerInterceptorProxy_impl();
-
-        //
-        // Register the client side interceptor
-        //
         try {
-            info.add_server_request_interceptor(p_[1]);
-            info.add_server_request_interceptor(p_[2]);
-            info.add_server_request_interceptor(p_[0]);
-        } catch (org.omg.PortableInterceptor.ORBInitInfoPackage.DuplicateName ex) {
-            throw new RuntimeException();
+            for (ServerRequestInterceptor sri : interceptorProxies) info.add_server_request_interceptor(sri);
+        } catch (DuplicateName e) {
+            throw new RuntimeException(e);
         }
     }
 
-    void setInterceptor(int which, ServerRequestInterceptor i) {
-        Assert.ensure(which >= 0 && which < 3);
-        p_[which]._OB_changeInterceptor(i);
+    void setInterceptor(int which, ServerRequestInterceptor sri) {
+        interceptorProxies.get(which).changeInterceptor(sri);
     }
 
-    void clearInterceptors() {
-        setInterceptor(0, null);
-        setInterceptor(1, null);
-        setInterceptor(2, null);
+    public void close() {
+        for (ServerInterceptorProxy_impl p: interceptorProxies) {
+            // Drive try-with-resources cleanup
+            //noinspection EmptyTryBlock
+            try(ServerInterceptorProxy_impl ignored = p) {}
+        }
     }
 }
