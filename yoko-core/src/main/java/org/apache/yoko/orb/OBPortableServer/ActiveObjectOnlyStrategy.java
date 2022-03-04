@@ -17,6 +17,7 @@
 
 package org.apache.yoko.orb.OBPortableServer;
 
+import org.apache.yoko.orb.Finalizer;
 import org.apache.yoko.orb.PortableServer.PoaCurrentImpl;
 import org.apache.yoko.util.Assert;
 import org.apache.yoko.util.MinorCodes;
@@ -24,7 +25,7 @@ import org.apache.yoko.util.MinorCodes;
 //
 // Mapping for ObjectId to a sequence of DirectStubImpl
 //
-class DirectSeqEntry {
+class DirectSeqEntry implements Finalizer {
     private java.util.Vector seq_;
 
     private byte[] oid_; // TODO: tmp
