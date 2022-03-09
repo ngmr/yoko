@@ -26,7 +26,7 @@ import org.omg.CORBA.Policy;
 import org.omg.CORBA.PolicyError;
 import org.omg.PortableInterceptor.PolicyFactory;
 
-public final class MyServerPolicyFactory_impl extends LocalObject implements PolicyFactory {
+public final class MyServerPolicyFactory extends LocalObject implements PolicyFactory {
     public Policy create_policy(int type, Any any) throws PolicyError {
         if (MY_SERVER_POLICY_ID.value == type) {
             try {

@@ -14,7 +14,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package acme.interceptors;
 
 import acme.idl.MY_CLIENT_POLICY_ID;
@@ -52,9 +51,8 @@ import org.omg.IOP.ServiceContext;
 import org.omg.IOP.TAG_INTERNET_IOP;
 import org.omg.PortableInterceptor.ClientRequestInfo;
 import org.omg.PortableInterceptor.ClientRequestInterceptor;
-import org.omg.PortableInterceptor.Current;
-import org.omg.PortableInterceptor.CurrentHelper;
 import org.omg.PortableInterceptor.LOCATION_FORWARD;
+import org.omg.PortableInterceptor.ORBInitInfo;
 import org.omg.PortableInterceptor.SUCCESSFUL;
 import org.omg.PortableInterceptor.SYSTEM_EXCEPTION;
 import org.omg.PortableInterceptor.USER_EXCEPTION;
@@ -77,9 +75,17 @@ import static org.omg.CORBA.ParameterMode.PARAM_INOUT;
 import static org.omg.CORBA.ParameterMode.PARAM_OUT;
 
 public final class CallInterceptorImpl extends LocalObject implements ClientRequestInterceptor {
-    private int req;
+    private final int slotId;
     private final Codec codec;
-    private final Current pic;
+    private int actualRequestCount;
+    private int expectedRequestCount;
+
+    public int getSlotId() { return slotId; }
+
+    public void expectOneMoreRequest() {
+        expectedRequestCount++;
+        assertEquals(expectedRequestCount, actualRequestCount);
+    }
 
     private static String getContent(String opName, Any any) {
         return opName.contains("string") ? any.extract_string() : sHelper.extract(any).sval;
@@ -115,11 +121,10 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
         }
     }
 
-    public CallInterceptorImpl(ORB orb) throws Exception {
-        final CodecFactory factory = CodecFactoryHelper.narrow(orb.resolve_initial_references("CodecFactory"));
+    public CallInterceptorImpl(ORBInitInfo info) throws Exception {
+        this.slotId = info.allocate_slot_id();
+        final CodecFactory factory = CodecFactoryHelper.narrow(info.resolve_initial_references("CodecFactory"));
         assertNotNull(factory);
-        pic = CurrentHelper.narrow(orb.resolve_initial_references("PICurrent"));
-        assertNotNull(pic);
         codec = factory.create_codec(new Encoding(ENCODING_CDR_ENCAPS.value, (byte) 0, (byte) 0));
         assertNotNull(codec);
     }
@@ -138,13 +143,12 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
     }
 
     public void send_request(ClientRequestInfo ri) {
-        req++;
+        actualRequestCount++;
         ri.request_id();
         final String op = ri.operation();
-        final boolean oneway = op.equals("noargs_oneway");
         testArgs(ri, false);
         checkExceptions(op, ri.exceptions());
-        assertNotEquals(oneway, ri.response_expected(), "Either the message should be one-way or a response should be expected");
+        assertNotEquals(op.equals("noargs_oneway"), ri.response_expected(), "Either the message should be one-way or a response should be expected");
         assertNotNull(ri.target());
         assertNotNull(ri.effective_target());
         assertEquals(TAG_INTERNET_IOP.value, ri.effective_profile().tag);
@@ -160,7 +164,7 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
         assertThrows(BAD_PARAM.class, () -> ri.get_request_service_context(REQUEST_CONTEXT_ID.value));
         assertThrows(BAD_PARAM.class, () -> ri.get_reply_service_context(REQUEST_CONTEXT_ID.value));
         if (op.equals("test_service_context")) {
-            final RequestContext rc = new RequestContext("request", assertDoesNotThrow(() -> ri.get_slot(0)).extract_long());
+            final RequestContext rc = new RequestContext("request", assertDoesNotThrow(() -> ri.get_slot(slotId)).extract_long());
             assertEquals(10, rc.val);
             final Any any = ORB.init().create_any();
             RequestContextHelper.insert(any, rc);
@@ -171,10 +175,7 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
             assertThrows(BAD_PARAM.class, () -> ri.get_request_service_context(REQUEST_CONTEXT_ID.value));
         }
 
-        assertEquals(TCKind._tk_null, assertDoesNotThrow(() -> ri.get_slot(0)).type().kind().value());
-        final Any newSlotData = ORB.init().create_any();
-        newSlotData.insert_long(15);
-        assertDoesNotThrow(() -> pic.set_slot(0, newSlotData));
+        assertEquals(TCKind._tk_null, assertDoesNotThrow(() -> ri.get_slot(slotId)).type().kind().value());
     }
 
     public void send_poll(ClientRequestInfo ri) {
@@ -221,10 +222,9 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
             assertThrows(BAD_PARAM.class, () -> ri.get_reply_service_context(REPLY_CONTEXT_1_ID.value));
         }
         assertThrows(BAD_INV_ORDER.class, () -> ri.add_request_service_context(new ServiceContext(REQUEST_CONTEXT_ID.value, null), false));
-        assertEquals(15, assertDoesNotThrow(() -> ri.get_slot(0)).extract_long());
+        assertEquals(15, assertDoesNotThrow(() -> ri.get_slot(slotId)).extract_long());
         final Any newSlotData = ORB.init().create_any();
         newSlotData.insert_long(16);
-        assertDoesNotThrow(() -> pic.set_slot(0, newSlotData));
     }
 
     public void receive_other(ClientRequestInfo ri) {
@@ -232,7 +232,7 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
         final String op = ri.operation();
         assertEquals("location_forward", op);
         assertThrows(BAD_INV_ORDER.class, ri::arguments);
-        checkExceptions(op, ri.exceptions());
+        assertEquals(0, ri.exceptions().length);
         assertTrue(ri.response_expected());
         assertNotNull(ri.target());
         assertNotNull(ri.effective_target());
@@ -249,10 +249,9 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
         assertThrows(BAD_PARAM.class, () -> ri.get_request_service_context(REQUEST_CONTEXT_ID.value));
         assertThrows(BAD_PARAM.class, () -> ri.get_reply_service_context(REPLY_CONTEXT_1_ID.value));
         assertThrows(BAD_INV_ORDER.class, () -> ri.add_request_service_context(new ServiceContext(REQUEST_CONTEXT_ID.value, null), false));
-        assertEquals(15, assertDoesNotThrow(() -> ri.get_slot(0)).extract_long());
+        assertEquals(15, assertDoesNotThrow(() -> ri.get_slot(slotId)).extract_long());
         final Any newSlotData = ORB.init().create_any();
         newSlotData.insert_long(16);
-        assertDoesNotThrow(() -> pic.set_slot(0, newSlotData));
         throw new NO_IMPLEMENT(); // Eat the location forward
     }
 
@@ -286,13 +285,8 @@ public final class CallInterceptorImpl extends LocalObject implements ClientRequ
         assertThrows(BAD_PARAM.class, () -> ri.get_reply_service_context(REPLY_CONTEXT_1_ID.value));
         assertThrows(BAD_PARAM.class, () -> ri.get_request_service_context(REQUEST_CONTEXT_ID.value));
         assertThrows(BAD_INV_ORDER.class, () -> ri.add_request_service_context(new ServiceContext(REQUEST_CONTEXT_ID.value, null), false));
-        assertEquals(15, assertDoesNotThrow(() -> ri.get_slot(0)).extract_long());
+        assertEquals(15, assertDoesNotThrow(() -> ri.get_slot(slotId)).extract_long());
         final Any newSlotData = ORB.init().create_any();
         newSlotData.insert_long(16);
-        assertDoesNotThrow(() -> pic.set_slot(0, newSlotData));
-    }
-
-    public int _OB_numReq() {
-        return req;
     }
 }
