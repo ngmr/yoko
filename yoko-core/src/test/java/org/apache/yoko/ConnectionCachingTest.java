@@ -1,3 +1,19 @@
+/*
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
 package org.apache.yoko;
 
 import org.apache.yoko.orb.OBPortableServer.POA;
@@ -9,28 +25,33 @@ import org.apache.yoko.orb.OCI.IIOP.AcceptorInfo;
 import org.apache.yoko.orb.OCI.IIOP.AcceptorInfoHelper;
 import org.apache.yoko.orb.spi.naming.NameServiceInitializer;
 import org.apache.yoko.orb.spi.naming.RemoteAccess;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.omg.CORBA.BAD_OPERATION;
-import org.omg.CORBA.LocalObject;
 import org.omg.CORBA.ORB;
 import org.omg.CORBA.portable.OutputStream;
 import org.omg.CORBA.portable.ResponseHandler;
 import org.omg.CORBA_2_3.portable.InputStream;
-import org.omg.CosNaming.*;
-import org.omg.PortableInterceptor.*;
-import org.omg.PortableInterceptor.ORBInitInfoPackage.DuplicateName;
+import org.omg.CosNaming.NameComponent;
+import org.omg.CosNaming.NamingContext;
+import org.omg.CosNaming.NamingContextExt;
+import org.omg.CosNaming.NamingContextExtHelper;
+import org.omg.CosNaming.NamingContextHelper;
+import org.omg.PortableInterceptor.ORBInitializer;
 import testify.iiop.Skellington;
+import testify.iiop.TestServerRequestInterceptor;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.Properties;
 
 import static javax.rmi.PortableRemoteObject.narrow;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ConnectionCachingTest {
-    private static final NameComponent[] OBJECT_NAME = { new NameComponent("object", "")};
+    private static final NameComponent[] OBJECT_NAME = { new NameComponent("object", "") };
     ORB serverORB;
     ORB clientORB;
 
@@ -45,54 +66,54 @@ public class ConnectionCachingTest {
 
     @Test
     public void testSingleNull() throws Exception {
-        Assert.assertEquals(null, newRemoteImpl(clientORB).bounce(null));
+        assertThat(newRemoteImpl(clientORB).bounce(null), nullValue());
     }
 
     @Test
     public void testSingleNullSameOrb() throws Exception {
-        Assert.assertEquals(null, newRemoteImpl(serverORB).bounce(null));
+        assertThat(newRemoteImpl(serverORB).bounce(null), nullValue());
     }
 
     @Test
     public void testSingleEmptyString() throws Exception {
-        Assert.assertEquals("", newRemoteImpl(clientORB).bounce(""));
+        assertThat(newRemoteImpl(clientORB).bounce(""), is(""));
     }
 
     @Test
     public void testSingleEmptyStringSameOrb() throws Exception {
-        Assert.assertEquals("", newRemoteImpl(serverORB).bounce(""));
+        assertThat(newRemoteImpl(serverORB).bounce(""), is(""));
     }
 
     @Test
     public void testSingleNonEmptyString() throws Exception {
-        Assert.assertEquals("hello", newRemoteImpl(clientORB).bounce("hello"));
+        assertThat(newRemoteImpl(clientORB).bounce("hello"), is("hello"));
     }
 
     @Test
     public void testSingleNonEmptyStringSameOrb() throws Exception {
-        Assert.assertEquals("hello", newRemoteImpl(serverORB).bounce("hello"));
+        assertThat(newRemoteImpl(serverORB).bounce("hello"), is("hello"));
     }
 
     @Test
     public void testLotsOfInvocations() throws Exception {
-        Assert.assertEquals(null, newRemoteImpl(clientORB).bounce(null));
-        Assert.assertEquals("", newRemoteImpl(clientORB).bounce(""));
-        Assert.assertEquals("a", newRemoteImpl(clientORB).bounce("a"));
-        Assert.assertEquals("ab", newRemoteImpl(clientORB).bounce("ab"));
-        Assert.assertEquals("abc", newRemoteImpl(clientORB).bounce("abc"));
-        Assert.assertEquals("abcd", newRemoteImpl(clientORB).bounce("abcd"));
-        Assert.assertEquals("abcde", newRemoteImpl(clientORB).bounce("abcde"));
+        assertThat(newRemoteImpl(clientORB).bounce(null), nullValue());
+        assertThat(newRemoteImpl(clientORB).bounce(""), is(""));
+        assertThat(newRemoteImpl(clientORB).bounce("a"), is("a"));
+        assertThat(newRemoteImpl(clientORB).bounce("ab"), is("ab"));
+        assertThat(newRemoteImpl(clientORB).bounce("abc"), is("abc"));
+        assertThat(newRemoteImpl(clientORB).bounce("abcd"), is("abcd"));
+        assertThat(newRemoteImpl(clientORB).bounce("abcde"), is("abcde"));
     }
 
     @Test
     public void testLotsOfInvocationsSameOrb() throws Exception {
-        Assert.assertEquals(null, newRemoteImpl(serverORB).bounce(null));
-        Assert.assertEquals("", newRemoteImpl(serverORB).bounce(""));
-        Assert.assertEquals("a", newRemoteImpl(serverORB).bounce("a"));
-        Assert.assertEquals("ab", newRemoteImpl(serverORB).bounce("ab"));
-        Assert.assertEquals("abc", newRemoteImpl(serverORB).bounce("abc"));
-        Assert.assertEquals("abcd", newRemoteImpl(serverORB).bounce("abcd"));
-        Assert.assertEquals("abcde", newRemoteImpl(serverORB).bounce("abcde"));
+        assertThat(newRemoteImpl(serverORB).bounce(null), nullValue());
+        assertThat(newRemoteImpl(serverORB).bounce(""), is(""));
+        assertThat(newRemoteImpl(serverORB).bounce("a"), is("a"));
+        assertThat(newRemoteImpl(serverORB).bounce("ab"), is("ab"));
+        assertThat(newRemoteImpl(serverORB).bounce("abc"), is("abc"));
+        assertThat(newRemoteImpl(serverORB).bounce("abcd"), is("abcd"));
+        assertThat(newRemoteImpl(serverORB).bounce("abcde"), is("abcde"));
     }
 
     private TheInterface newRemoteImpl(ORB callerOrb) throws Exception {
@@ -112,58 +133,18 @@ public class ConnectionCachingTest {
     private static class TheImpl extends Skellington implements TheInterface {
         @Override
         protected OutputStream dispatch(String method, InputStream in, ResponseHandler reply) throws RemoteException {
-            switch (method) {
-                case "bounce":
-                    String result = bounce((String) in.read_value(String.class));
-                    OutputStream out = reply.createReply();
-                    ((org.omg.CORBA_2_3.portable.OutputStream) out).write_value(result, String.class);
-                    return out;
-                default:
-                    throw new BAD_OPERATION();
-            }
+            if (!"bounce".equals(method)) throw new BAD_OPERATION();
+            String result = bounce((String) in.read_value(String.class));
+            OutputStream out = reply.createReply();
+            ((org.omg.CORBA_2_3.portable.OutputStream) out).write_value(result, String.class);
+            return out;
         }
 
         @Override
         public String bounce(String s) {return s;}
     }
 
-    public static class DummyInterceptor extends LocalObject implements ORBInitializer, ServerRequestInterceptor {
-
-        @Override
-        public String name() {
-            return "DummyInterceptor";
-        }
-
-        @Override
-        public void destroy() {}
-
-        @Override
-        public void pre_init(ORBInitInfo info) {}
-
-        @Override
-        public void post_init(ORBInitInfo info) {
-            try {
-                info.add_server_request_interceptor(this);
-            } catch (DuplicateName duplicateName) {
-                throw new Error(duplicateName);
-            }
-        }
-
-        @Override
-        public void receive_request_service_contexts(ServerRequestInfo ri) throws ForwardRequest {}
-
-        @Override
-        public void receive_request(ServerRequestInfo ri) throws ForwardRequest {}
-
-        @Override
-        public void send_reply(ServerRequestInfo ri) {}
-
-        @Override
-        public void send_exception(ServerRequestInfo ri) throws ForwardRequest {}
-
-        @Override
-        public void send_other(ServerRequestInfo ri) throws ForwardRequest {}
-    }
+    public static class DummyInterceptor implements TestServerRequestInterceptor {}
 
 
     private static class Util {
