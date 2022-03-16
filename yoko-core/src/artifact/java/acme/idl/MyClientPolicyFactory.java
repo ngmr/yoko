@@ -28,14 +28,11 @@ import org.omg.PortableInterceptor.PolicyFactory;
 
 public final class MyClientPolicyFactory extends LocalObject implements PolicyFactory {
     public Policy create_policy(int type, Any any) throws PolicyError {
-        if (type == MY_CLIENT_POLICY_ID.value) {
-            try {
-                int val = any.extract_long();
-                return new MyClientPolicy_impl(val);
-            } catch (BAD_OPERATION ignored) {}
+        if (MY_CLIENT_POLICY_ID.value != type) throw new PolicyError(BAD_POLICY.value);
+        try {
+            return new MyClientPolicy_impl(any.extract_long());
+        } catch (BAD_OPERATION ignored) {}
 
-            throw new PolicyError(BAD_POLICY_TYPE.value);
-        }
-        throw new PolicyError(BAD_POLICY.value);
+        throw new PolicyError(BAD_POLICY_TYPE.value);
     }
 }
