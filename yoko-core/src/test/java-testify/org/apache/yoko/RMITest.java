@@ -2,7 +2,6 @@ package org.apache.yoko;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.omg.CORBA.ORB;
 import org.omg.PortableServer.POA;
 import test.rmi.Sample;
 import test.rmi.SampleCmsfv2ChildData;
@@ -29,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,7 +45,7 @@ public class RMITest {
     private static SampleCorba sampleCorba;
 
     @BeforeAll
-    public static void beforeAll(ORB orb, POA rootPoa) throws Exception {
+    public static void beforeAll(POA rootPoa) throws Exception {
         // Bind a sample CORBA object
         SampleCorba_impl impl = new SampleCorba_impl();
         byte [] id = rootPoa.activate_object(impl);
@@ -58,12 +59,12 @@ public class RMITest {
         // gets marshaled correctly.  The SampleSerializable object defines a
         // List field into which we'll place a Vector object.  This should properly
         // be processed as a value type rather than an abstract interface.
-        Vector v = new Vector(10);
+        Vector<String> v = new Vector<>(10);
         v.add("This is a test");
         SampleSerializable ser = new SampleSerializable();
         ser.setList(v);
         SampleSerializable ser2 = (SampleSerializable)sample.sendReceiveSerializable(ser);
-        Vector v2 = (Vector)ser2.getList();
+        @SuppressWarnings("rawtypes") Vector v2 = assertInstanceOf(Vector.class, ser2.getList());
         assertEquals(10, v2.capacity());
         assertEquals(1, v2.size());
         assertEquals("This is a test", v2.elementAt(0));
@@ -89,77 +90,77 @@ public class RMITest {
     @Test
     // Test invoking methods with signature conflicts and arrays
     public void testArray(Sample sample) throws Exception {
-        assertTrue(10 == sample.sendReceiveInt(10));
+        assertEquals(10, sample.sendReceiveInt(10));
         int[] intA = new int[] {10, 20};
 
         intA = sample.sendReceiveInt(intA);
         assertEquals(2, intA.length);
-        assertTrue(20 == intA[0]);
-        assertTrue(10 == intA[1]);
+        assertEquals(20, intA[0]);
+        assertEquals(10, intA[1]);
 
-        assertTrue(10 == sample.sendReceiveShort((short)10));
+        assertEquals(10, sample.sendReceiveShort((short) 10));
         short[] shortA = new short[] {10, 20};
 
         shortA = sample.sendReceiveShort(shortA);
         assertEquals(2, shortA.length);
-        assertTrue(20 == shortA[0]);
-        assertTrue(10 == shortA[1]);
+        assertEquals(20, shortA[0]);
+        assertEquals(10, shortA[1]);
 
-        assertTrue(10 == sample.sendReceiveChar((char)10));
+        assertEquals(10, sample.sendReceiveChar((char) 10));
         char[] charA = new char[] {10, 20};
 
         charA = sample.sendReceiveChar(charA);
         assertEquals(2, charA.length);
-        assertTrue(20 == charA[0]);
-        assertTrue(10 == charA[1]);
+        assertEquals(20, charA[0]);
+        assertEquals(10, charA[1]);
 
-        assertTrue(10 == sample.sendReceiveByte((byte)10));
+        assertEquals(10, sample.sendReceiveByte((byte) 10));
         byte[] byteA = new byte[] {10, 20};
 
         byteA = sample.sendReceiveByte(byteA);
         assertEquals(2, byteA.length);
-        assertTrue(20 == byteA[0]);
-        assertTrue(10 == byteA[1]);
+        assertEquals(20, byteA[0]);
+        assertEquals(10, byteA[1]);
 
-        assertTrue(10L == sample.sendReceiveLong(10L));
+        assertEquals(10L, sample.sendReceiveLong(10L));
         long[] longA = new long[] {10L, 20L};
 
         longA = sample.sendReceiveLong(longA);
         assertEquals(2, longA.length);
-        assertTrue(20L == longA[0]);
-        assertTrue(10L == longA[1]);
+        assertEquals(20L, longA[0]);
+        assertEquals(10L, longA[1]);
 
-        assertTrue(10. == sample.sendReceiveFloat((float)10.));
+        assertEquals(10., sample.sendReceiveFloat((float) 10.));
         float[] floatA = new float[] {(float)10., (float)20.};
 
         floatA = sample.sendReceiveFloat(floatA);
         assertEquals(2, floatA.length);
-        assertTrue(20. == floatA[0]);
-        assertTrue(10. == floatA[1]);
+        assertEquals(20., floatA[0]);
+        assertEquals(10., floatA[1]);
 
-        assertTrue(10. == sample.sendReceiveDouble(10.));
+        assertEquals(10., sample.sendReceiveDouble(10.));
         double[] doubleA = new double[] {10., 20.};
 
         doubleA = sample.sendReceiveDouble(doubleA);
         assertEquals(2, doubleA.length);
-        assertTrue(20. == doubleA[0]);
-        assertTrue(10. == doubleA[1]);
+        assertEquals(20., doubleA[0]);
+        assertEquals(10., doubleA[1]);
 
-        assertTrue(false == sample.sendReceiveBoolean(false));
+        assertFalse(sample.sendReceiveBoolean(false));
         boolean[] booleanA = new boolean[] {true, false};
 
         booleanA = sample.sendReceiveBoolean(booleanA);
         assertEquals(2, booleanA.length);
-        assertTrue(false == booleanA[0]);
-        assertTrue(true == booleanA[1]);
+        assertFalse(booleanA[0]);
+        assertTrue(booleanA[1]);
 
-        assertTrue("a".equals(sample.sendReceiveString("a")));
+        assertEquals("a", sample.sendReceiveString("a"));
         String[] StringA = new String[] {"a", "b"};
 
         StringA = sample.sendReceiveString(StringA);
         assertEquals(2, StringA.length);
-        assertTrue("b".equals(StringA[0]));
-        assertTrue("a".equals(StringA[1]));
+        assertEquals("b", StringA[0]);
+        assertEquals("a", StringA[1]);
 
         SampleSerializable ser = new SampleSerializable();
         ser.setInt(10);
@@ -203,7 +204,7 @@ public class RMITest {
     public void testBasicSerializable(Sample sample) throws Exception {
         SampleSerializable ser = new SampleSerializable();
         sample.setSerializable(ser);
-        SampleSerializable ser2 = (SampleSerializable) sample.getSerializable();
+        assertInstanceOf(SampleSerializable.class, sample.getSerializable());
     }
 
     @Test
@@ -297,7 +298,7 @@ public class RMITest {
     @Test
     public void testComplexRemoteArgument(Sample sample, SampleRemote sampleRemote) throws Exception {
         sample.setSampleRemote(sampleRemote);
-        sample.getSampleRemote();
+        assertInstanceOf(SampleRemote.class, sample.getSampleRemote());
     }
 
     @Test
@@ -318,7 +319,7 @@ public class RMITest {
         ser.setSerializableObject(ser);
         sample.setSerializable(ser);
         SampleSerializable ser2 = (SampleSerializable) sample.getSerializable();
-        assertTrue(ser2 == ser2.getSerializableObject());
+        assertSame(ser2, ser2.getSerializableObject());
     }
 
     @Test
@@ -365,16 +366,16 @@ public class RMITest {
         ser.setSampleCorba(sampleCorba);
         sample.setSerializable(ser);
         SampleSerializable ser2 = (SampleSerializable) sample.getSerializable();
-        SampleCorba corbaRef2 = ser2.getSampleCorba();
+        assertInstanceOf(SampleCorba.class, SampleCorbaHelper.narrow(ser2.getSampleCorba()));
     }
 
     @Test
     public void testHashMap(Sample sample) throws Exception {
         HashMap<Integer, Serializable> map = new HashMap<>();
-        String str = new String("hello");
+        String str = "hello";
         map.put(0, str);
         map.put(1, str);
-        Integer two = new Integer(2);
+        Integer two = 2;
         map.put(3, two);
         map.put(4, two);
         sample.setSerializable(map);
