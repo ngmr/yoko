@@ -28,9 +28,11 @@ import javax.rmi.CORBA.Util;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.security.PrivilegedAction;
 import java.util.Map;
 
+import static java.lang.reflect.Modifier.isAbstract;
 import static java.security.AccessController.doPrivileged;
 import static org.apache.yoko.util.PrivilegedActions.getClassLoader;
 
@@ -42,12 +44,16 @@ class IDLEntityDescriptor extends ValueDescriptor {
         super(type, repository);
 
         isCorba = org.omg.CORBA.Object.class.isAssignableFrom(type);
+        final String helperName = type.getName() + "Helper";
+        Class helperType = null;
         try {
-            final String helperName = type.getName() + "Helper";
             helperType = Util.loadClass(helperName, null, doPrivileged(getClassLoader(type)));
         } catch (ClassNotFoundException ex) {
-            throw new RuntimeException("cannot load IDL Helper class for "
-                    + type, ex);
+            // abstract classes don't necessarily have Helper classes
+            // TODO: Fix the implications of this
+            if (!isAbstract(type.getModifiers())) throw new RuntimeException("cannot load IDL Helper class for " + type, ex);
+        } finally {
+            this.helperType = helperType;
         }
     }
 
@@ -78,6 +84,7 @@ class IDLEntityDescriptor extends ValueDescriptor {
         return doPrivileged(new PrivilegedAction<Method>() {
             @Override
             public Method run() {
+                if (null == helperType) return null;
                 for (Method m: helperType.getDeclaredMethods()) {
                     if (m.getName().equals(name)) return m;
                 }
@@ -155,6 +162,6 @@ class IDLEntityDescriptor extends ValueDescriptor {
             throw (MARSHAL)new MARSHAL(""+ex.getCause()).initCause(ex.getCause());
         } catch (IllegalAccessException ex) {
             throw (MARSHAL)new MARSHAL(ex.getMessage()).initCause(ex);
-        }
+        } catch (Throwable t) { return null; }
     }
 }

@@ -158,7 +158,11 @@ class ValueDescriptor extends TypeDescriptor {
             }
 
         } catch (RuntimeException | Error ex) {
-            throw as(INTERNAL::new, ex);
+            // abstract IDLEntity classes don't have Helper classes, which messes with init'ing their TypeDescriptor
+            // for now, swallow init errors in this case
+            // TODO: Fix this properly
+            if (null != type && Modifier.isAbstract(type.getModifiers())) return;
+            throw as(INTERNAL::new, ex, type.toString());
         }
     }
 
