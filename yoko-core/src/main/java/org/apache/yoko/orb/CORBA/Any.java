@@ -961,6 +961,7 @@ final public class Any extends org.omg.CORBA.Any {
         TCKind kind = origTypeCode.kind();
 
         if (tk_value != kind && tk_value_box != kind && tk_abstract_interface != kind) {
+            logger.fine("####" + origTypeCode.toString());
             throw new BAD_OPERATION(describeBadOperation(MinorTypeMismatch), MinorTypeMismatch, COMPLETED_NO);
         }
 

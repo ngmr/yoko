@@ -24,6 +24,9 @@ import acme.idl.TestInterfacePackage.sHelper;
 import acme.idl.TestInterfacePackage.sHolder;
 import acme.idl.TestInterfacePackage.user;
 import acme.idl.TestInterfacePackage.userHelper;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.omg.CORBA.Any;
 import org.omg.CORBA.BAD_INV_ORDER;
@@ -56,13 +59,19 @@ import org.omg.PortableInterceptor.USER_EXCEPTION;
 import testify.iiop.TestClientRequestInterceptor;
 import testify.iiop.TestIORInterceptor;
 import testify.jupiter.annotation.iiop.ConfigureOrb.UseWithOrb;
+import testify.jupiter.annotation.logging.Logging;
+
+import java.util.Arrays;
+import java.util.Objects;
 
 import static java.util.Arrays.copyOf;
 import static org.apache.yoko.orb.OB.PortableInterceptorTest.StubType.DSI_INTERFACE;
 import static org.apache.yoko.orb.OB.PortableInterceptorTest.StubType.TEST_INTERFACE;
 import static org.apache.yoko.orb.OB.Util.unmarshalSystemException;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -75,6 +84,7 @@ import static org.omg.CORBA.ParameterMode.PARAM_IN;
 import static org.omg.CORBA.ParameterMode.PARAM_INOUT;
 import static org.omg.CORBA.ParameterMode.PARAM_OUT;
 
+@Logging
 class InterceptorCallTest extends PortableInterceptorTest {
     private static Runnable CHECK_REQUEST_COUNT = () -> { throw new BAD_INV_ORDER(); };
 
@@ -254,7 +264,7 @@ class InterceptorCallTest extends PortableInterceptorTest {
             ri.request_id();
             final String op = ri.operation();
             if (op.equals("deactivate")) return;
-            assertTrue(op.equals("systemexception") || op.equals("userexception"));
+            assertThat(Objects.toString(ri.received_exception()), op, anyOf(is("systemexception"), is("userexception")));
             assertThrows(BAD_INV_ORDER.class, ri::arguments);
             checkExceptions(op, ri.exceptions());
             assertTrue(ri.response_expected());

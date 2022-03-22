@@ -40,6 +40,10 @@ import acme.idl.TestInterfacePackage.userHelper;
 import acme.idl.TestInterface_impl;
 import acme.idl.TestLocator_impl;
 import org.apache.yoko.orb.OBPortableServer.POAHelper;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matcher;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeAll;
 import org.omg.CORBA.Any;
 import org.omg.CORBA.BAD_INV_ORDER;
@@ -76,6 +80,7 @@ import testify.jupiter.annotation.iiop.ConfigureServer.BeforeServer;
 import testify.streams.BiStream;
 
 import java.util.EnumMap;
+import java.util.Objects;
 
 import static java.util.Arrays.copyOf;
 import static java.util.function.Function.identity;
@@ -83,6 +88,7 @@ import static org.apache.yoko.orb.OB.PortableInterceptorTest.StubType.DSI_INTERF
 import static org.apache.yoko.orb.OB.PortableInterceptorTest.StubType.TEST_INTERFACE;
 import static org.apache.yoko.orb.OB.Util.unmarshalSystemException;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -174,7 +180,7 @@ public class PortableInterceptorTest {
                 Encoding encoding = new Encoding(ENCODING_CDR_ENCAPS.value, (byte) 0, (byte) 0);
                 cdrCodec = assertDoesNotThrow(() -> info.codec_factory().create_codec(encoding));
             } finally {
-                //TestServerRequestInterceptor.super.post_init(info);
+                TestServerRequestInterceptor.super.post_init(info);
             }
         }
 
@@ -328,10 +334,6 @@ public class PortableInterceptorTest {
                 final RequestContext requestContext = RequestContextHelper.extract(any);
                 assertThat(requestContext.data, is("request"));
                 assertThat(requestContext.val, is(10));
-                // Test: PortableInterceptor::Current
-                Any slotData = ORB.init().create_any();
-                slotData.insert_long(requestContext.val);
-                assertDoesNotThrow(() -> ri.set_slot(0, slotData));
 
                 // Test: add_reply_service_context
                 final ReplyContext replyContext = new ReplyContext("reply1", 101);
@@ -572,14 +574,6 @@ public class PortableInterceptorTest {
             assertThat(myServerPolicy.value(), is(10));
 
             assertThrows(INV_POLICY.class, () -> ri.get_server_policy(1013));
-
-            // Test: get_slot
-            if (op.equals("test_service_context")) {
-                int val;
-                Any slotData = assertDoesNotThrow(() -> ri.get_slot(0));
-                val = slotData.extract_long();
-                assertThat(val, is(20));
-            }
         }
 
         @Override
@@ -662,7 +656,7 @@ public class PortableInterceptorTest {
             // Test: get operation name
             String op = ri.operation();
 
-            assertThat(op.equals("systemexception") || op.equals("userexception") || op.equals("deactivate"), is(true));
+            assertThat(Objects.toString(ri.sending_exception()), op, anyOf(is("systemexception"), is("userexception"), is("deactivate")));
 
             boolean user = op.equals("userexception");
 
@@ -739,7 +733,7 @@ public class PortableInterceptorTest {
 
             // Test: orb id is correct
             String orbId = ri.orb_id();
-            assertThat(orbId, is("myORB"));
+            assertThat(orbId, is("server orb"));
 
             // Test: adapter name is correct
             String[] adapterName = ri.adapter_name();
