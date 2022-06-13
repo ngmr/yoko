@@ -1,5 +1,6 @@
 package org.apache.yoko;
 
+import org.apache.yoko.rmi.impl.TypeRepository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.omg.CORBA.ORB;
@@ -15,15 +16,25 @@ import test.rmi.SampleImpl;
 import test.rmi.SampleRemote;
 import test.rmi.SampleRemoteImpl;
 import test.rmi.SampleSerializable;
+import testify.jupiter.annotation.Tracing;
 import testify.jupiter.annotation.iiop.ConfigureServer;
 import testify.jupiter.annotation.iiop.ConfigureServer.RemoteImpl;
+import testify.jupiter.annotation.logging.Logging;
+import testify.jupiter.annotation.logging.Logging.LoggingLevel;
 
 import javax.rmi.PortableRemoteObject;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectStreamField;
 import java.io.Serializable;
+import java.math.BigInteger;
 import java.rmi.Remote;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Vector;
 import java.util.concurrent.TimeUnit;
 
@@ -34,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ConfigureServer
+@Tracing
 public class RMITest {
     @RemoteImpl
     public static final Sample sampleImpl = new SampleImpl();
@@ -50,6 +62,58 @@ public class RMITest {
         byte [] id = rootPoa.activate_object(impl);
         org.omg.CORBA.Object o = rootPoa.create_reference_with_id(id, impl._all_interfaces(rootPoa, id)[0]);
         sampleCorba = SampleCorbaHelper.narrow(o);
+    }
+
+    static class Wibble implements Serializable {
+        private static final ObjectStreamField[] serialPersisentFields = { new ObjectStreamField("wibble", int.class) };
+        private int splong;
+
+        Wibble(int splong) { this.splong = splong; }
+        private void readObject(ObjectInputStream ois) throws Exception {
+            //GetField gf = ois.readFields();
+            ois.defaultReadObject();
+        }
+        private void writeObject(ObjectOutputStream oos) throws Exception {
+            //PutField pf = oos.putFields();
+            //pf.put("wibble", 20);
+            //oos.writeFields();
+            oos.defaultWriteObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Wibble wibble = (Wibble) o;
+            return splong == wibble.splong;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(splong);
+        }
+    }
+
+    @Test
+    @Logging(value = "yoko.verbose", level = LoggingLevel.FINEST)
+    @Logging(value = "org.apache.yoko", level = LoggingLevel.ALL)
+    public void testBigInteger(Sample sample) throws Exception {
+        System.setProperty("org.omg.CORBA.ORBSingletonClass", "org.apache.yoko.orb.CORBA.ORBSingleton");
+        System.out.println("####");
+        TypeRepository repo = TypeRepository.get();
+        Object desc = repo.getDescriptor(Wibble.class);
+        System.out.println(desc.toString());
+        //System.out.println(desc.getFullValueDescription());
+        System.out.println("####");
+        assertEquals(BigInteger.TEN, sample.sendReceiveSerializable(BigInteger.TEN));
+        Wibble w = new Wibble(10);
+        assertEquals(w, sample.sendReceiveSerializable(w));
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(baos);
+        oos.writeObject(w);
+        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+        ObjectInputStream ois = new ObjectInputStream(bais);
+        assertEquals(w, ois.readObject());
     }
 
     @Test

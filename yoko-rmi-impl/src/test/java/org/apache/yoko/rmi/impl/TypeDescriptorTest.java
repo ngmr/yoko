@@ -1,6 +1,7 @@
 package org.apache.yoko.rmi.impl;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.omg.CORBA.Any;
@@ -12,6 +13,7 @@ import testify.jupiter.annotation.ClassSource;
 
 import javax.rmi.CORBA.ClassDesc;
 import java.io.Externalizable;
+import java.io.ObjectStreamField;
 import java.io.Serializable;
 import java.rmi.Remote;
 import java.util.Date;
@@ -155,7 +157,37 @@ public class TypeDescriptorTest {
             Object[].class, ObjectArrayDescriptor.class})
     public void testDescriptorType(Class<?> marshalledType, Class<?> descriptorType) {
         final TypeDescriptor descriptor = TypeRepository.get().getDescriptor(marshalledType);
-        Assertions.assertEquals(descriptor.getClass(), descriptorType);
+        Assertions.assertSame(descriptor.getClass(), descriptorType);
+    }
+
+    static class Splong implements Serializable {
+        private static final ObjectStreamField[] serialPersistentFields = {
+                new ObjectStreamField("splat", int.class),
+                new ObjectStreamField("splat2", long.class)
+        };
+        private Wibble wibble;
+    }
+
+    static class Wibble implements Serializable {
+        private Splong splong;
+    }
+
+    @Test
+    public void testNgmr() {
+        System.setProperty("org.omg.CORBA.ORBSingletonClass", "org.apache.yoko.orb.CORBA.ORBSingleton");
+        System.setProperty("javax.rmi.CORBA.UtilClass", "org.apache.yoko.rmi.util.UtilImpl");
+        System.setProperty("javax.rmi.CORBA.StubClass", "org.apache.yoko.rmi.impl.StubImpl");
+        System.setProperty("javax.rmi.CORBA.PortableRemoteObjectClass", "org.apache.yoko.rmi.impl.PortableRemoteObjectImpl");
+        System.out.println("####");
+        TypeRepository repo = TypeRepository.get();
+        ValueDescriptor desc = (ValueDescriptor) repo.getDescriptor(Splong.class);
+        System.out.println(desc.toString());
+        System.out.println(desc.getFullValueDescription());
+        System.out.println("####");
+        //ObjectStreamClass osc = ObjectStreamClass.lookup(BigInteger.class);
+        //System.out.println(osc);
+        //System.out.println(Arrays.deepToString(osc.getFields()));
+        //System.out.println("####");
     }
 
     @ParameterizedTest

@@ -143,6 +143,9 @@ class OrbSteward implements ExtensionContext.Store.CloseableResource {
         props.put("yoko.orb.id", cfg.value());
         props.put("org.omg.CORBA.ORBClass", "org.apache.yoko.orb.CORBA.ORB");
         props.put("org.omg.CORBA.ORBSingletonClass", "org.apache.yoko.orb.CORBA.ORBSingleton");
+        props.put("javax.rmi.CORBA.UtilClass", "org.apache.yoko.rmi.util.UtilImpl");
+        props.put("javax.rmi.CORBA.StubClass", "org.apache.yoko.rmi.impl.StubImpl");
+        props.put("javax.rmi.CORBA.PortableRemoteObjectClass", "org.apache.yoko.rmi.impl.PortableRemoteObjectImpl");
         for (String prop : cfg.props()) {
             if (prop.isEmpty()) continue;
             String[] arr = prop.split("=", 2);
