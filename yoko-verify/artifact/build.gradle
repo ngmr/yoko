@@ -1,0 +1,15 @@
+configurations {
+  implementation.extendsFrom testLib
+}
+
+sourceSets {
+  main.java.srcDir "src/main/java-generated" // include src/main/java-generated alongside src/main/java
+}
+
+dependencies {
+  implementation project(':testify')
+  implementation project(':yoko-osgi')
+  implementation project(':yoko-util')
+  implementation project(':yoko-spec-corba')
+  implementation project(':yoko-rmi-spec')
+}

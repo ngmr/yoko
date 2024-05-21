@@ -1,0 +1,8 @@
+configurations {
+  implementation.extendsFrom testLib
+}
+
+dependencies {
+  implementation project(':yoko-spec-corba')
+  implementation project(':yoko-verify:artifact')
+}

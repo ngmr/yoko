@@ -1,0 +1,9 @@
+configurations {
+  implementation.extendsFrom testLib
+}
+
+dependencies {
+  implementation project(':yoko-verify:artifact')
+  implementation project(':yoko-verify:artifact:v0')
+  implementation project(':testify')
+}

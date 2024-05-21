@@ -18,7 +18,7 @@
 package versioned;
 
 import acme.Widget;
-import org.apache.yoko.orb.CORBA.InputStream;
+import org.omg.CORBA_2_3.portable.InputStream;
 
 import java.util.function.Function;
 
