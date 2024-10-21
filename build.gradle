@@ -30,6 +30,16 @@ buildscript {
 
 plugins {
   id "biz.aQute.bnd.builder" version "6.3.1" apply false
+  id 'java'
+  id 'org.openrewrite.rewrite' version '6.25.1'
+}
+
+repositories {
+  mavenCentral()
+}
+
+rewrite {
+  // openrewrite extension config
 }
 
 ext {
