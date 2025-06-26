@@ -32,6 +32,7 @@ import testify.bus.Bus;
 import testify.bus.key.StringKey;
 import testify.iiop.TestIORInterceptor;
 import testify.annotation.TraceTestify;
+import testify.iiop.annotation.ConfigureOrb;
 import testify.iiop.annotation.ConfigureOrb.UseWithOrb;
 import testify.iiop.annotation.ConfigureServer;
 import testify.iiop.annotation.ConfigureServer.RemoteImpl;
@@ -45,6 +46,8 @@ import java.net.Socket;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.CLIENT_ORB;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.SERVER_ORB;
 
 /**
  * Test receiving fragment messages. This is hard to test because at the time of writing,
@@ -127,7 +130,7 @@ public class FragmentedMessageTest {
      * Look out for tagged components from the {@link ServerSideFragmenter} and redirect traffic via the specified
      * alternative port.
      */
-    @UseWithOrb("client orb")
+    @UseWithOrb(CLIENT_ORB)
     public static class ClientSideFragmenter implements ExtendedConnectionHelper {
         private ConnectionHelper connHelper = new DefaultConnectionHelper();
 
@@ -178,7 +181,7 @@ public class FragmentedMessageTest {
      * Specifically, it inserts one that describes an alternative port.
      * The {@link ClientSideFragmenter} sees this component and then redirects the traffic via the alternative port.
      */
-    @UseWithOrb("server orb")
+    @UseWithOrb(SERVER_ORB)
     public static class ServerSideFragmenter implements TestIORInterceptor {
         private volatile Relay relay;
         @Override

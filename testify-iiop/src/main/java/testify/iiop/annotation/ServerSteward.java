@@ -26,6 +26,7 @@ import org.omg.CosNaming.NamingContextHelper;
 import testify.annotation.Summoner;
 import testify.annotation.runner.AnnotationButler;
 import testify.bus.Bus;
+import testify.iiop.annotation.ConfigureOrb.UseWithOrb;
 import testify.parts.PartRunner;
 
 import javax.rmi.PortableRemoteObject;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static javax.rmi.PortableRemoteObject.narrow;
@@ -257,10 +259,11 @@ class ServerSteward {
     }
 
     private boolean isServerOrbModifier(Class<?> c) {
-        return findAnnotation(c, ConfigureOrb.UseWithOrb.class)
-                .map(ConfigureOrb.UseWithOrb::value)
-                .map(config.serverOrb().value()::matches)
-                .orElse(false);
+        return findAnnotation(c, UseWithOrb.class)
+                .map(UseWithOrb::value)
+                .map(Stream::of)
+                .orElseGet(Stream::empty)
+                .anyMatch(config.serverOrb().value()::equals);
     }
 
     static ServerSteward getInstance(ExtensionContext ctx) {
@@ -277,11 +280,11 @@ class ServerSteward {
     }
 
     public void beforeTestExecution(ExtensionContext ctx) {
-// TODO       if (config.separation() == INTER_PROCESS) serverComms.beginLogging(TestLogger.getLogStarter(ctx));
+        // TODO       if (config.separation() == INTER_PROCESS) serverComms.beginLogging(TestLogger.getLogStarter(ctx));
     }
 
     public void afterTestExecution(ExtensionContext ctx) {
-// TODO        if (config.separation() == INTER_PROCESS) serverComms.endLogging(TestLogger.getLogFinisher(ctx));
+        // TODO        if (config.separation() == INTER_PROCESS) serverComms.endLogging(TestLogger.getLogFinisher(ctx));
     }
 
     public boolean supportsParameter(Class<?> type) {

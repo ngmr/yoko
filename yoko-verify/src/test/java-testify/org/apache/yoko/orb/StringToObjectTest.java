@@ -31,6 +31,7 @@ import testify.iiop.annotation.ServerControl;
 import testify.parts.PartRunner;
 
 import static testify.iiop.annotation.ConfigureOrb.NameService.READ_WRITE;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.CLIENT_ORB;
 
 @ConfigureServer(serverOrb = @ConfigureOrb(nameService = READ_WRITE))
 public class StringToObjectTest {
@@ -44,7 +45,7 @@ public class StringToObjectTest {
     public static ServerControl serverControl;
 
     /** Traces request flows from the client ORB perspective */
-    @UseWithOrb("client orb")
+    @UseWithOrb(CLIENT_ORB)
     public static class ClientInterceptor implements TestClientRequestInterceptor {
         public void send_request(ClientRequestInfo ri) { System.out.println("### client interceptor send_request op=" + ri.operation()); }
         public void send_poll(ClientRequestInfo ri) { System.out.println("### client interceptor send_poll op=" + ri.operation()); }

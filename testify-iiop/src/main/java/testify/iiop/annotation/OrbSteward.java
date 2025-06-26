@@ -28,6 +28,8 @@ import org.omg.PortableServer.POA;
 import org.omg.PortableServer.POAHelper;
 import org.omg.PortableServer.POAManagerPackage.AdapterInactive;
 import testify.annotation.Summoner;
+import testify.iiop.annotation.ConfigureOrb.OrbId;
+import testify.iiop.annotation.ConfigureOrb.UseWithOrb;
 import testify.util.ArrayUtils;
 import testify.util.Predicates;
 
@@ -55,7 +57,7 @@ class OrbSteward implements ExtensionContext.Store.CloseableResource {
         }
     }
 
-    private final String orbName;
+    private final OrbId orbId;
 
     @SuppressWarnings("unused")
     interface NullIiopConnectionHelper {
@@ -66,7 +68,7 @@ class OrbSteward implements ExtensionContext.Store.CloseableResource {
 
     OrbSteward(ConfigureOrb annotation) {
         this.annotation = annotation;
-        this.orbName = annotation.value();
+        this.orbId = annotation.value();
     }
 
     /**
@@ -90,10 +92,11 @@ class OrbSteward implements ExtensionContext.Store.CloseableResource {
     }
 
     private boolean isOrbModifier(Class<?> c) {
-        return AnnotationSupport.findAnnotation(c, ConfigureOrb.UseWithOrb.class)
-                .map(ConfigureOrb.UseWithOrb::value)
-                .filter(orbName::matches)
-                .isPresent();
+        return AnnotationSupport.findAnnotation(c, UseWithOrb.class)
+                .map(UseWithOrb::value)
+                .map(Stream::of)
+                .orElseGet(Stream::empty)
+                .anyMatch(orbId::equals);
     }
 
     /**

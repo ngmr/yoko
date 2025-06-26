@@ -50,6 +50,8 @@ import static java.util.Collections.unmodifiableSet;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.platform.commons.support.AnnotationSupport.findAnnotation;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.CLIENT_ORB;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.SERVER_ORB;
 import static testify.iiop.annotation.ConfigureServer.Separation.INTER_ORB;
 import static testify.iiop.annotation.ConfigureServer.ServerName.DEFAULT_SERVER;
 import static testify.iiop.annotation.OrbSteward.getActivatedRootPoa;
@@ -68,10 +70,10 @@ public @interface ConfigureServer {
     String[] jvmArgs() default {};
 
     /** Define the config for the ORB the client for this server will use. */
-    ConfigureOrb clientOrb() default @ConfigureOrb("client orb");
+    ConfigureOrb clientOrb() default @ConfigureOrb(CLIENT_ORB);
 
     /** Define the config for the ORB this server will use. */
-    ConfigureOrb serverOrb() default @ConfigureOrb("server orb");
+    ConfigureOrb serverOrb() default @ConfigureOrb(SERVER_ORB);
 
     /**
      * Annotate methods to be run in the server on ORB startup

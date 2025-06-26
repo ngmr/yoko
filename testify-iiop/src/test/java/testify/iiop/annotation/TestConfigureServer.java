@@ -24,23 +24,27 @@ import org.junit.jupiter.api.Test;
 import org.omg.CORBA.ORB;
 import org.omg.PortableInterceptor.ORBInitInfo;
 import testify.iiop.TestORBInitializer;
+import testify.iiop.annotation.ConfigureOrb.UseWithOrb;
+import testify.iiop.annotation.ConfigureServer.BeforeServer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.CLIENT_ORB;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.SERVER_ORB;
 
 public class TestConfigureServer {
     @ConfigureServer(
-            clientOrb = @ConfigureOrb(value = "client orb", args = "base client orb"),
-            serverOrb = @ConfigureOrb(value = "server orb", args = "base server orb")
+            clientOrb = @ConfigureOrb(value = CLIENT_ORB, args = "base client orb"),
+            serverOrb = @ConfigureOrb(value = SERVER_ORB, args = "base server orb")
     )
     abstract static class TestConfigureServerBase {
         static ORB clientOrb, serverOrb;
         static String clientOrbId, serverOrbId;
 
-        @ConfigureServer.BeforeServer
+        @BeforeServer
         public static void recordServerOrb(ORB orb) {
             serverOrb = orb;
             System.out.println("### server ORB = " + serverOrb);
@@ -58,12 +62,12 @@ public class TestConfigureServer {
             clientOrbId = serverOrbId = null;
         }
 
-        @ConfigureOrb.UseWithOrb("client orb")
+        @UseWithOrb(CLIENT_ORB)
         public static class ClientOrbInitializer implements TestORBInitializer {
             public void pre_init(ORBInitInfo info) { clientOrbId = info.arguments()[0]; }
         }
 
-        @ConfigureOrb.UseWithOrb("server orb")
+        @UseWithOrb(SERVER_ORB)
         public static class ServerOrbInitializer implements TestORBInitializer {
             public void pre_init(ORBInitInfo info) { serverOrbId = info.arguments()[0]; }
         }
@@ -72,8 +76,8 @@ public class TestConfigureServer {
     @Nested
     @ConfigureServer(
             separation = ConfigureServer.Separation.INTER_ORB,
-            clientOrb = @ConfigureOrb(value = "client orb", args = "inter-orb client orb"),
-            serverOrb = @ConfigureOrb(value = "server orb", args = "inter-orb server orb")
+            clientOrb = @ConfigureOrb(value = CLIENT_ORB, args = "inter-orb client orb"),
+            serverOrb = @ConfigureOrb(value = SERVER_ORB, args = "inter-orb server orb")
     )
     class TestConfigureServerInterOrb extends TestConfigureServerBase {
         @Test
@@ -89,8 +93,8 @@ public class TestConfigureServer {
     @Nested
     @ConfigureServer(
             separation = ConfigureServer.Separation.INTER_PROCESS,
-            clientOrb = @ConfigureOrb(value = "client orb", args = "inter-process client orb"),
-            serverOrb = @ConfigureOrb(value = "server orb", args = "inter-process server orb")
+            clientOrb = @ConfigureOrb(value = CLIENT_ORB, args = "inter-process client orb"),
+            serverOrb = @ConfigureOrb(value = SERVER_ORB, args = "inter-process server orb")
     )
     class TestConfigureServerInterProcess extends TestConfigureServerBase {
         @Test
@@ -106,8 +110,8 @@ public class TestConfigureServer {
     @Nested
     @ConfigureServer(
             separation = ConfigureServer.Separation.COLLOCATED,
-            serverOrb = @ConfigureOrb(value = "server orb", args = "collocated server orb"),
-            clientOrb = @ConfigureOrb(value = "client orb", args = "collocated client orb")
+            serverOrb = @ConfigureOrb(value = SERVER_ORB, args = "collocated server orb"),
+            clientOrb = @ConfigureOrb(value = CLIENT_ORB, args = "collocated client orb")
     )
     class TestConfigureServerCollocated extends TestConfigureServerBase {
         @Test

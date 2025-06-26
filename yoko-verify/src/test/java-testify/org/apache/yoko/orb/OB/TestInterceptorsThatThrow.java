@@ -40,6 +40,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.omg.CORBA.CompletionStatus.COMPLETED_MAYBE;
 import static org.omg.CORBA.CompletionStatus.COMPLETED_NO;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.SERVER_ORB;
 import static testify.iiop.annotation.ConfigureServer.Separation.COLLOCATED;
 
 @ConfigureServer
@@ -67,7 +68,7 @@ public class TestInterceptorsThatThrow {
         InterceptionPoint(Invoker<Target> invoker) { this(invoker, COMPLETED_MAYBE); }
     }
 
-    @UseWithOrb("server orb")
+    @UseWithOrb(SERVER_ORB)
     public static class InterceptorThatThrows implements TestServerRequestInterceptor {
         public void receive_request_service_contexts(ServerRequestInfo ri) throws ForwardRequest { maybeThrowInternal(ri).orForwardRequest(); }
         public void receive_request(ServerRequestInfo ri) throws ForwardRequest { maybeThrowInternal(ri).orForwardRequest(); }

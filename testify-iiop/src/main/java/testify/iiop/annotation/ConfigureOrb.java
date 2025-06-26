@@ -29,12 +29,17 @@ import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
 import static java.lang.annotation.ElementType.TYPE;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 import static testify.iiop.annotation.ConfigureOrb.NameService.NONE;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.DEFAULT_ORB;
 
 @ExtendWith(OrbExtension.class)
 @Target({ANNOTATION_TYPE, TYPE})
 @Retention(RUNTIME)
 @Inherited
 public @interface ConfigureOrb {
+    /**
+     * identifiers to distinguish the ORBs in a multi-orb test configuration
+     */
+    enum OrbId {DEFAULT_ORB, CLIENT_ORB, SERVER_ORB}
     enum NameService {
         NONE,
         READ_ONLY("org.apache.yoko.orb.spi.naming.NameServiceInitializer", "-YokoNameServiceRemoteAccess", "readOnly"),
@@ -52,20 +57,21 @@ public @interface ConfigureOrb {
             this.initializerClassName = initializerClassName;
         }
 
-        Optional<Class<? extends ORBInitializer>> getInitializerClass() {
+        @SuppressWarnings("unchecked")
+        <T extends ORBInitializer> Optional<Class<T>> getInitializerClass() {
             return Optional.ofNullable(initializerClassName).map(c -> {
                 try {
-                    return Class.forName(c);
+                    return (Class<T>)Class.forName(c);
                 } catch (ClassNotFoundException e) {
                     Error e2 = new NoClassDefFoundError();
                     e2.initCause(e);
                     throw e2;
                 }
-            }).map(ORBInitializer.class.getClass()::cast);
+            });
         }
     }
 
-    String value() default "orb";
+    OrbId value() default DEFAULT_ORB;
     String[] args() default "";
     String[] props() default "";
     NameService nameService() default NONE;
@@ -75,8 +81,7 @@ public @interface ConfigureOrb {
     @Retention(RUNTIME)
     @interface UseWithOrb {
         // TODO: maybe set the initializer classes in the ORB config
-        // TODO: use enums to identify ORBs
         // TODO: configure differently for @ConfigureServer
-        String value() default ".*";
+        OrbId[] value() default DEFAULT_ORB;
     }
 }

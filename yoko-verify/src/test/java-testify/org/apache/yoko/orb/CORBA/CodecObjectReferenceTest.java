@@ -41,14 +41,16 @@ import testify.iiop.annotation.ConfigureServer.RemoteImpl;
 import javax.rmi.CORBA.Stub;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.CLIENT_ORB;
+import static testify.iiop.annotation.ConfigureOrb.OrbId.SERVER_ORB;
 
 /**
  * The codecs retrieved from an ORBInitInfo should be capable
  * of marshalling and demarshalling an object reference.
  */
-@ConfigureServer(serverOrb = @ConfigureOrb(value = "server orb", nameService = NameService.READ_ONLY))
+@ConfigureServer(serverOrb = @ConfigureOrb(value = SERVER_ORB, nameService = NameService.READ_ONLY))
 public class CodecObjectReferenceTest {
-    @UseWithOrb("client orb")
+    @UseWithOrb(CLIENT_ORB)
     public static class ClientOrbInitializer extends TestORBInitializer {
         private static Codec codec;
         public void post_init(ORBInitInfo info) {
@@ -60,7 +62,7 @@ public class CodecObjectReferenceTest {
         }
     }
 
-    @UseWithOrb("server orb")
+    @UseWithOrb(SERVER_ORB)
     public static class ServerOrbInitializer extends TestORBInitializer {
         private static Codec codec;
         public void post_init(ORBInitInfo info) {
@@ -76,7 +78,7 @@ public class CodecObjectReferenceTest {
 
     @NameServiceStub
     public static NamingContext nameService;
-interface Echo extends RemoteFunction<String, String> {}
+    interface Echo extends RemoteFunction<String, String> {}
 
     @RemoteImpl
     public static final Echo REMOTE = String::toString;
