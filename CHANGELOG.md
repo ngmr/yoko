@@ -1,3 +1,7 @@
+## [v1.6.2] - 2026-07-23
+
+A minor update containing only logging changes
+
 ## [v1.6.1] - 2026-04-15
 
 ### 🐛 Bug Fixes

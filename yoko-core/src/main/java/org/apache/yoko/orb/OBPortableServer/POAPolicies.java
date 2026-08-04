@@ -54,6 +54,8 @@ import org.omg.PortableServer.THREAD_POLICY_ID;
 import org.omg.PortableServer.ThreadPolicyHelper;
 import org.omg.PortableServer.ThreadPolicyValue;
 
+import java.util.Optional;
+
 import static org.apache.yoko.logging.VerboseLogging.POA_INIT_LOG;
 import static org.apache.yoko.orb.OBPortableServer.SynchronizationPolicyValue.NO_SYNCHRONIZATION;
 import static org.apache.yoko.orb.OBPortableServer.SynchronizationPolicyValue.SYNCHRONIZE_ON_ORB;
@@ -99,7 +101,7 @@ final public class POAPolicies {
         DispatchStrategy dispatchStrategy = null;
         short bidir = BOTH.value;
 
-        if (policies != null) {
+        if (null != policies) {
             for (Policy policy : policies) {
                 switch (policy.policy_type()) {
                     // CORBA standard policies
@@ -118,8 +120,7 @@ final public class POAPolicies {
                     case ZERO_PORT_POLICY_ID.value: zeroPort = ZeroPortPolicyHelper.narrow(ZeroPortPolicyHelper.narrow(policy)).value(); break;
                     default:
                         // Unknown policy - log at fine level since this is expected when new policies are introduced
-                        final String poa = poaName != null ? "POA '" + poaName + "' is ignoring" : "Ignoring";
-                        POA_INIT_LOG.fine(() -> String.format("%s unsupported policy of type 0x%x", poa, policy.policy_type()));
+                        POA_INIT_LOG.fine(() -> String.format("%s unsupported policy of type 0x%x", null == poaName ? "Ignoring" : "POA '" + poaName + "' is ignoring", policy.policy_type()));
                 }
             }
         }
@@ -133,18 +134,10 @@ final public class POAPolicies {
         idAssignmentPolicy = idAssignment;
         idUniquenessPolicy = idUniqueness;
         lifespanPolicy = lifespan;
-        // the synchronization policy can be set explicitly (proprietary), or derived from the thread policy (standard)
-        if (null == synchronization) {
-            // only consider the thread policy if there was no explicit synchronization policy
-            synchronizationPolicy = SINGLE_THREAD_MODEL == thread ? SYNCHRONIZE_ON_ORB : NO_SYNCHRONIZATION;
-        } else {
-            synchronizationPolicy = synchronization;
-        }
-        if (dispatchStrategy == null) {
-            DispatchStrategyFactory dsf = orbInstance.getDispatchStrategyFactory();
-            dispatchStrategy = dsf.create_default_dispatch_strategy();
-        }
-        dispatchStrategyPolicy = dispatchStrategy;
+        synchronizationPolicy = Optional.ofNullable(synchronization) // the synchronization policy can be set explicitly (proprietary),
+                .orElse(SINGLE_THREAD_MODEL == thread ? SYNCHRONIZE_ON_ORB : NO_SYNCHRONIZATION); // or derived from the thread policy (standard)
+        dispatchStrategyPolicy = Optional.ofNullable(dispatchStrategy)
+                .orElseGet(orbInstance.getDispatchStrategyFactory()::create_default_dispatch_strategy);
     }
 
     public boolean interceptorCallPolicy() {
