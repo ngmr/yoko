@@ -67,14 +67,27 @@ gradle bumpVersion
 gradle bumpVersionNonInteractive -PversionBump=patch
 ```
 
-This updates `gradle.properties` with the new version.
+This will:
+1. Detect the current version from git tags in your branch ancestry
+2. Check for conflicting versions elsewhere in the repository
+3. Display available version bump options (letter-based menu):
+   - **[J]** maJor version bump
+   - **[N]** miNor version bump
+   - **[P]** Patch version bump
+   - **[C]** Cancel
+4. Validate the selected bump doesn't conflict with existing tags
+5. Provide git commands to create and push the new version tag
 
-**Commit the version change:**
+**Note**: Options may be marked "UNAVAILABLE" if they would conflict with existing versions. You must merge/rebase to include higher versions before bumping.
+
+**Create and push the version tag:**
 
 ```bash
-git add gradle.properties
-git commit -m "chore: bump version to X.Y.Z"
-git push origin release/X.Y.Z  # Always push to origin for releases
+# Create annotated tag (replace X.Y.Z with your version)
+git tag -a vX.Y.Z -m "Release X.Y.Z"
+
+# Push tag to origin
+git push origin vX.Y.Z
 ```
 
 ### Step 4: Update CHANGELOG

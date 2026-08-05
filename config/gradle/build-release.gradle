@@ -37,6 +37,68 @@ def releaseProjects = [
     ':yoko-core'
 ]
 
+// Helper function to get latest version from git tags (only in ancestry)
+def getLatestVersionFromGit() {
+    try {
+        // Get all tags that are reachable from HEAD (in ancestry)
+        def tagsOutput = 'git tag --merged HEAD'.execute().text.trim()
+        if (!tagsOutput) {
+            return '0.0.0'
+        }
+
+        def versionPattern = /^v?(\d+\.\d+\.\d+)$/
+        def versions = tagsOutput.split('\n')
+            .findAll { it =~ versionPattern }
+            .collect { tag ->
+                def matcher = tag =~ versionPattern
+                matcher.matches() ? matcher.group(1) : null
+            }
+            .findAll { it != null }
+
+        if (versions.isEmpty()) {
+            return '0.0.0'
+        }
+
+        // Sort versions semantically and return the highest
+        return versions.sort { a, b ->
+            def aParts = a.split('\\.').collect { it.toInteger() }
+            def bParts = b.split('\\.').collect { it.toInteger() }
+
+            for (int i = 0; i < 3; i++) {
+                if (aParts[i] != bParts[i]) {
+                    return aParts[i] <=> bParts[i]
+                }
+            }
+            return 0
+        }.last()
+    } catch (Exception e) {
+        return '0.0.0'
+    }
+}
+
+// Helper function to get all version tags from git (not just in ancestry)
+def getAllVersionTagsFromGit() {
+    try {
+        def tagsOutput = 'git tag'.execute().text.trim()
+        if (!tagsOutput) {
+            return []
+        }
+
+        def versionPattern = /^v?(\d+\.\d+\.\d+)$/
+        return tagsOutput.split('\n')
+            .findAll { it =~ versionPattern }
+            .collect { tag ->
+                def matcher = tag =~ versionPattern
+                matcher.matches() ? matcher.group(1) : null
+            }
+            .findAll { it != null }
+    } catch (Exception e) {
+        return []
+    }
+}
+
+
+
 // Task to verify release prerequisites
 task verifyReleasePrerequisites {
     group = 'release'
@@ -236,18 +298,8 @@ task bumpVersionNonInteractive {
             throw new GradleException("Must specify -PversionBump=major|minor|patch")
         }
         
-        def propsFile = file('gradle.properties')
-        if (!propsFile.exists()) {
-            throw new GradleException("gradle.properties not found")
-        }
-        
-        def props = new Properties()
-        propsFile.withInputStream { props.load(it) }
-        def currentVersion = props.getProperty('version')
-        
-        if (!currentVersion) {
-            throw new GradleException("No version property found in gradle.properties")
-        }
+        // Get current version from git tags (only in ancestry)
+        def currentVersion = getLatestVersionFromGit()
         
         def versionPattern = /^(\d+)\.(\d+)\.(\d+)$/
         def matcher = currentVersion =~ versionPattern
@@ -273,24 +325,215 @@ task bumpVersionNonInteractive {
                 break
         }
         
-        def content = propsFile.text
-        def updatedContent = content.replaceAll(
-            /(?m)^version=.*$/,
-            "version=${newVersion}"
-        )
-        propsFile.text = updatedContent
+        // Check if the new version would conflict with existing versions
+        def allVersions = getAllVersionTagsFromGit()
+
+        // Validate based on bump type using same logic as interactive task
+        if (bumpType == 'major') {
+            // Check if there are any higher versions in the current major version line
+            def higherInCurrentMajor = allVersions.any { otherVersion ->
+                def otherMatcher = otherVersion =~ versionPattern
+                if (!otherMatcher.matches()) return false
+                def otherMajor = otherMatcher.group(1).toInteger()
+                def otherMinor = otherMatcher.group(2).toInteger()
+                def otherPatch = otherMatcher.group(3).toInteger()
+
+                return otherMajor == major && (otherMinor > minor || (otherMinor == minor && otherPatch > patch))
+            }
+
+            if (higherInCurrentMajor) {
+                throw new GradleException("""
+Cannot bump major version: higher versions exist in current major version line!
+
+Current version: ${currentVersion} (from ancestry)
+Requested bump: major → ${newVersion}
+
+Higher versions exist in the ${major}.x.x line that are not in your branch ancestry.
+You must merge/rebase to include all ${major}.x.x versions before bumping to ${major + 1}.0.0.
+""")
+            }
+
+            // Check if any versions exist in the next major version line or higher
+            def existsInNextMajor = allVersions.any { otherVersion ->
+                def otherMatcher = otherVersion =~ versionPattern
+                if (!otherMatcher.matches()) return false
+                def otherMajor = otherMatcher.group(1).toInteger()
+                return otherMajor >= (major + 1)
+            }
+
+            if (existsInNextMajor) {
+                def conflicting = allVersions.findAll { otherVersion ->
+                    def otherMatcher = otherVersion =~ versionPattern
+                    if (!otherMatcher.matches()) return false
+                    def otherMajor = otherMatcher.group(1).toInteger()
+                    return otherMajor >= (major + 1)
+                }
+                throw new GradleException("""
+Cannot bump major version: versions already exist in ${major + 1}.x.x line!
+
+Current version: ${currentVersion} (from ancestry)
+Requested bump: major → ${newVersion}
+Conflicting versions: ${conflicting.sort().take(5).join(', ')}
+
+You must either:
+  1. Merge/rebase with the branch containing these versions
+  2. Delete conflicting tags if they were created in error
+  3. Use manual version override: -PbaseVersion=X.Y.Z
+""")
+            }
+
+        } else if (bumpType == 'minor') {
+            // Check if there are any higher versions in the current minor version line
+            def higherInCurrentMinor = allVersions.any { otherVersion ->
+                def otherMatcher = otherVersion =~ versionPattern
+                if (!otherMatcher.matches()) return false
+                def otherMajor = otherMatcher.group(1).toInteger()
+                def otherMinor = otherMatcher.group(2).toInteger()
+                def otherPatch = otherMatcher.group(3).toInteger()
+
+                return otherMajor == major && otherMinor == minor && otherPatch > patch
+            }
+
+            if (higherInCurrentMinor) {
+                throw new GradleException("""
+Cannot bump minor version: higher patch versions exist in current minor version line!
+
+Current version: ${currentVersion} (from ancestry)
+Requested bump: minor → ${newVersion}
+
+Higher versions exist in the ${major}.${minor}.x line that are not in your branch ancestry.
+You must merge/rebase to include all ${major}.${minor}.x versions before bumping to ${major}.${minor + 1}.0.
+""")
+            }
+
+            // Check if any versions exist in higher minor lines or higher major versions
+            def existsInHigherMinor = allVersions.any { otherVersion ->
+                def otherMatcher = otherVersion =~ versionPattern
+                if (!otherMatcher.matches()) return false
+                def otherMajor = otherMatcher.group(1).toInteger()
+                def otherMinor = otherMatcher.group(2).toInteger()
+
+                return otherMajor > major || (otherMajor == major && otherMinor >= (minor + 1))
+            }
+
+            if (existsInHigherMinor) {
+                def conflicting = allVersions.findAll { otherVersion ->
+                    def otherMatcher = otherVersion =~ versionPattern
+                    if (!otherMatcher.matches()) return false
+                    def otherMajor = otherMatcher.group(1).toInteger()
+                    def otherMinor = otherMatcher.group(2).toInteger()
+
+                    return otherMajor > major || (otherMajor == major && otherMinor >= (minor + 1))
+                }
+                throw new GradleException("""
+Cannot bump minor version: versions already exist in ${major}.${minor + 1}.x line or higher!
+
+Current version: ${currentVersion} (from ancestry)
+Requested bump: minor → ${newVersion}
+Conflicting versions: ${conflicting.sort().take(5).join(', ')}
+
+You must either:
+  1. Merge/rebase with the branch containing these versions
+  2. Delete conflicting tags if they were created in error
+  3. Use manual version override: -PbaseVersion=X.Y.Z
+""")
+            }
+
+        } else if (bumpType == 'patch') {
+            // For patch, check if the exact version already exists
+            if (allVersions.contains(newVersion)) {
+                throw new GradleException("""
+Cannot bump patch version: ${newVersion} already exists!
+
+Current version: ${currentVersion} (from ancestry)
+Requested bump: patch → ${newVersion}
+
+This exact version already exists in the repository.
+You must either:
+  1. Merge/rebase with the branch containing ${newVersion}
+  2. Delete the conflicting tag if it was created in error
+  3. Use manual version override: -PbaseVersion=X.Y.Z
+""")
+            }
+
+            // Also check if there are higher versions that would make this patch invalid
+            def higherVersions = allVersions.any { otherVersion ->
+                def otherMatcher = otherVersion =~ versionPattern
+                if (!otherMatcher.matches()) return false
+                def otherMajor = otherMatcher.group(1).toInteger()
+                def otherMinor = otherMatcher.group(2).toInteger()
+                def otherPatch = otherMatcher.group(3).toInteger()
+
+                return otherMajor > major ||
+                       (otherMajor == major && otherMinor > minor) ||
+                       (otherMajor == major && otherMinor == minor && otherPatch > patch)
+            }
+
+            if (higherVersions) {
+                def conflicting = allVersions.findAll { otherVersion ->
+                    def otherMatcher = otherVersion =~ versionPattern
+                    if (!otherMatcher.matches()) return false
+                    def otherMajor = otherMatcher.group(1).toInteger()
+                    def otherMinor = otherMatcher.group(2).toInteger()
+                    def otherPatch = otherMatcher.group(3).toInteger()
+
+                    return otherMajor > major ||
+                           (otherMajor == major && otherMinor > minor) ||
+                           (otherMajor == major && otherMinor == minor && otherPatch > patch)
+                }
+                throw new GradleException("""
+Cannot bump patch version: higher versions exist in repository!
+
+Current version: ${currentVersion} (from ancestry)
+Requested bump: patch → ${newVersion}
+Higher versions: ${conflicting.sort().take(5).join(', ')}
+
+You must merge/rebase to include these higher versions before creating ${newVersion}.
+""")
+            }
+        }
+
+        // Check if there are higher versions elsewhere (informational only)
+        def higherVersions = allVersions.findAll { otherVersion ->
+            def otherMatcher = otherVersion =~ versionPattern
+            if (!otherMatcher.matches()) return false
+
+            def otherMajor = otherMatcher.group(1).toInteger()
+            def otherMinor = otherMatcher.group(2).toInteger()
+            def otherPatch = otherMatcher.group(3).toInteger()
+
+            if (otherMajor > major) return true
+            if (otherMajor == major && otherMinor > minor) return true
+            if (otherMajor == major && otherMinor == minor && otherPatch > patch) return true
+            return false
+        }
         
-        println """
+        def output = """
 ✅ Version bumped successfully!
 
-Old version: ${currentVersion}
+Old version: ${currentVersion} (from ancestry)
 New version: ${newVersion}
-
-Next steps:
-  1. Review: git diff gradle.properties
-  2. Commit: git add gradle.properties && git commit -m "chore: bump version to ${newVersion}"
-  3. Update CHANGELOG: ./gradlew updateChangelog
 """
+
+        if (!higherVersions.isEmpty()) {
+            output += """
+ℹ️  INFO: Higher versions exist elsewhere in the repository: ${higherVersions.sort().reverse().take(5).join(', ')}
+   Current branch ancestry only includes up to ${currentVersion}
+
+"""
+        }
+
+        output += """
+Next steps:
+  1. Create git tag: git tag v${newVersion}
+  2. Push tag: git push origin v${newVersion}
+  3. Update CHANGELOG: ./gradlew updateChangelog
+  4. Build with new version: ./gradlew build
+
+Note: The version is now managed via git tags, not gradle.properties
+"""
+
+        println output
     }
 }
 
@@ -300,46 +543,172 @@ task bumpVersion {
     description = 'Interactively bump the semantic version (major, minor, or patch)'
     
     doLast {
-        def propsFile = file('gradle.properties')
-        if (!propsFile.exists()) {
-            throw new GradleException("gradle.properties not found")
-        }
+        // Get current version from git tags (only in ancestry)
+        def currentVersion = getLatestVersionFromGit()
         
-        // Read current version from gradle.properties
-        def props = new Properties()
-        propsFile.withInputStream { props.load(it) }
-        def currentVersion = props.getProperty('version')
-        
-        if (!currentVersion) {
-            throw new GradleException("No version property found in gradle.properties")
-        }
-        
-        // Parse semantic version
         def versionPattern = /^(\d+)\.(\d+)\.(\d+)$/
         def matcher = currentVersion =~ versionPattern
         
         if (!matcher.matches()) {
-            throw new GradleException("Version '${currentVersion}' does not match semantic versioning format (major.minor.patch)")
+            throw new GradleException("Version '${currentVersion}' doesn't match semantic versioning format (X.Y.Z)")
         }
         
         def major = matcher.group(1).toInteger()
         def minor = matcher.group(2).toInteger()
         def patch = matcher.group(3).toInteger()
         
+        // Check for higher versions elsewhere in the repository
+        def allVersions = getAllVersionTagsFromGit()
+
+        // Determine which version bumps are valid (not conflicting with existing tags)
+        def proposedMajor = "${major + 1}.0.0"
+        def proposedMinor = "${major}.${minor + 1}.0"
+        def proposedPatch = "${major}.${minor}.${patch + 1}"
+
+        // For major version bump: must be the latest version in current major version line
+        // AND no versions exist in the next major version line
+        def canBumpMajor = true
+
+        // Check if there are any higher versions in the current major version line
+        def higherInCurrentMajor = allVersions.any { otherVersion ->
+            def otherMatcher = otherVersion =~ versionPattern
+            if (!otherMatcher.matches()) return false
+            def otherMajor = otherMatcher.group(1).toInteger()
+            def otherMinor = otherMatcher.group(2).toInteger()
+            def otherPatch = otherMatcher.group(3).toInteger()
+
+            // Same major version but higher minor or patch
+            return otherMajor == major && (otherMinor > minor || (otherMinor == minor && otherPatch > patch))
+        }
+
+        // Check if any versions exist in the next major version line or higher
+        def existsInNextMajor = allVersions.any { otherVersion ->
+            def otherMatcher = otherVersion =~ versionPattern
+            if (!otherMatcher.matches()) return false
+            def otherMajor = otherMatcher.group(1).toInteger()
+            return otherMajor >= (major + 1)
+        }
+
+        canBumpMajor = !higherInCurrentMajor && !existsInNextMajor
+
+        // For minor version bump: must be the latest version in current minor version line
+        // AND no versions exist in higher minor lines of the same major version
+        def canBumpMinor = true
+
+        // Check if there are any higher versions in the current minor version line
+        def higherInCurrentMinor = allVersions.any { otherVersion ->
+            def otherMatcher = otherVersion =~ versionPattern
+            if (!otherMatcher.matches()) return false
+            def otherMajor = otherMatcher.group(1).toInteger()
+            def otherMinor = otherMatcher.group(2).toInteger()
+            def otherPatch = otherMatcher.group(3).toInteger()
+
+            // Same major.minor but higher patch
+            return otherMajor == major && otherMinor == minor && otherPatch > patch
+        }
+
+        // Check if any versions exist in higher minor lines or higher major versions
+        def existsInHigherMinor = allVersions.any { otherVersion ->
+            def otherMatcher = otherVersion =~ versionPattern
+            if (!otherMatcher.matches()) return false
+            def otherMajor = otherMatcher.group(1).toInteger()
+            def otherMinor = otherMatcher.group(2).toInteger()
+
+            return otherMajor > major || (otherMajor == major && otherMinor >= (minor + 1))
+        }
+
+        canBumpMinor = !higherInCurrentMinor && !existsInHigherMinor
+
+        // For patch version bump: check if the exact version already exists anywhere
+        // OR if there are higher versions in the same minor line or higher
+        def canBumpPatch = !allVersions.contains(proposedPatch) && !allVersions.any { otherVersion ->
+            def otherMatcher = otherVersion =~ versionPattern
+            if (!otherMatcher.matches()) return false
+            def otherMajor = otherMatcher.group(1).toInteger()
+            def otherMinor = otherMatcher.group(2).toInteger()
+            def otherPatch = otherMatcher.group(3).toInteger()
+
+            // Check if there are higher versions in same minor line or higher
+            return otherMajor > major ||
+                   (otherMajor == major && otherMinor > minor) ||
+                   (otherMajor == major && otherMinor == minor && otherPatch > patch)
+        }
+
+        // Find higher versions for warning message
+        def higherVersions = allVersions.findAll { otherVersion ->
+            def otherMatcher = otherVersion =~ versionPattern
+            if (!otherMatcher.matches()) return false
+
+            def otherMajor = otherMatcher.group(1).toInteger()
+            def otherMinor = otherMatcher.group(2).toInteger()
+            def otherPatch = otherMatcher.group(3).toInteger()
+
+            if (otherMajor > major) return true
+            if (otherMajor == major && otherMinor > minor) return true
+            if (otherMajor == major && otherMinor == minor && otherPatch > patch) return true
+            return false
+        }
+
+        def warningMessage = ""
+        if (!higherVersions.isEmpty()) {
+            warningMessage = """
+⚠️  WARNING: Higher versions exist elsewhere in the repository:
+   ${higherVersions.sort().reverse().take(5).join(', ')}${higherVersions.size() > 5 ? ' ...' : ''}
+
+   Current branch ancestry only includes up to ${currentVersion}
+   Some version bump options are disabled to prevent conflicts.
+
+"""
+        }
+
+        // Build menu with letter-based options (consistent regardless of what's available)
+        // Show menu even if no options available, so user can see what's blocked and why
+        def menuOptions = []
+        def optionMap = [:]
+        def validOptions = []
+
+        if (canBumpMajor) {
+            menuOptions.add("  [J] maJor version (${major}.${minor}.${patch} → ${proposedMajor})")
+            optionMap['j'] = ['major', proposedMajor]
+            optionMap['J'] = ['major', proposedMajor]
+            validOptions.add('J')
+        } else {
+            menuOptions.add("  [J] maJor version (${major}.${minor}.${patch} → ${proposedMajor}) - UNAVAILABLE")
+        }
+
+        if (canBumpMinor) {
+            menuOptions.add("  [N] miNor version (${major}.${minor}.${patch} → ${proposedMinor})")
+            optionMap['n'] = ['minor', proposedMinor]
+            optionMap['N'] = ['minor', proposedMinor]
+            validOptions.add('N')
+        } else {
+            menuOptions.add("  [N] miNor version (${major}.${minor}.${patch} → ${proposedMinor}) - UNAVAILABLE")
+        }
+
+        if (canBumpPatch) {
+            menuOptions.add("  [P] Patch version (${major}.${minor}.${patch} → ${proposedPatch})")
+            optionMap['p'] = ['patch', proposedPatch]
+            optionMap['P'] = ['patch', proposedPatch]
+            validOptions.add('P')
+        } else {
+            menuOptions.add("  [P] Patch version (${major}.${minor}.${patch} → ${proposedPatch}) - UNAVAILABLE")
+        }
+
+        menuOptions.add("  [C] Cancel")
+        optionMap['c'] = null
+        optionMap['C'] = null
+
         println """
 ╔════════════════════════════════════════════════════════════════╗
 ║                    Version Bump Utility                        ║
 ╚════════════════════════════════════════════════════════════════╝
 
-Current version: ${currentVersion}
-
+Current version: ${currentVersion} (from ancestry)
+${warningMessage}
 Select version component to bump:
-  1) Major version (${major}.${minor}.${patch} → ${major + 1}.0.0)
-  2) Minor version (${major}.${minor}.${patch} → ${major}.${minor + 1}.0)
-  3) Patch version (${major}.${minor}.${patch} → ${major}.${minor}.${patch + 1})
-  4) Cancel
+${menuOptions.join('\n')}
 
-Enter choice [1-4]: """
+Enter choice [${validOptions.join('/')}${validOptions.isEmpty() ? '' : '/'}C]: """
         
         // Use standard input instead of System.console() for better compatibility
         def reader = new BufferedReader(new InputStreamReader(System.in))
@@ -349,45 +718,56 @@ Enter choice [1-4]: """
             throw new GradleException("No input received. Please run this task in an interactive terminal.")
         }
         
-        def newVersion
-        switch (choice) {
-            case '1':
-                newVersion = "${major + 1}.0.0"
-                break
-            case '2':
-                newVersion = "${major}.${minor + 1}.0"
-                break
-            case '3':
-                newVersion = "${major}.${minor}.${patch + 1}"
-                break
-            case '4':
-                println "\nVersion bump cancelled."
-                return
-            default:
-                throw new GradleException("Invalid choice: ${choice}")
+        // Check if user cancelled
+        if (choice.toLowerCase() == 'c') {
+            println "\nVersion bump cancelled."
+            return
         }
         
-        println "\nUpdating version from ${currentVersion} to ${newVersion}..."
+        // Get the selected version bump
+        def selectedOption = optionMap[choice]
+        if (selectedOption == null && choice.toLowerCase() != 'c') {
+            def validChoices = validOptions.join(', ')
+            throw new GradleException("Invalid choice: '${choice}'. Valid options are: ${validChoices}, C")
+        }
         
-        // Update gradle.properties
-        def content = propsFile.text
-        def updatedContent = content.replaceAll(
-            /(?m)^version=.*$/,
-            "version=${newVersion}"
-        )
-        propsFile.text = updatedContent
+        if (selectedOption == null) {
+            println "\nVersion bump cancelled."
+            return
+        }
         
-        println """
-✅ Version updated successfully!
+        def bumpType = selectedOption[0]
+        def newVersion = selectedOption[1]
 
-Old version: ${currentVersion}
+        // Double-check the new version doesn't exist (shouldn't happen with our filtering)
+        def versionWarnings = []
+        if (allVersions.contains(newVersion)) {
+            versionWarnings.add("⚠️  WARNING: Version ${newVersion} already exists in the repository!")
+            versionWarnings.add("   This should not happen. Please report this as a bug.")
+        }
+
+        def output = """
+✅ Version bumped successfully!
+
+Old version: ${currentVersion} (from ancestry)
 New version: ${newVersion}
-
-Next steps:
-  1. Review the change: git diff gradle.properties
-  2. Commit the change: git add gradle.properties && git commit -m "chore: bump version to ${newVersion}"
-  3. Update CHANGELOG: ./gradlew updateChangelog
 """
+
+        if (!versionWarnings.isEmpty()) {
+            output += "\n" + versionWarnings.join('\n') + "\n"
+        }
+
+        output += """
+Next steps:
+  1. Create git tag: git tag v${newVersion}
+  2. Push tag: git push origin v${newVersion}
+  3. Update CHANGELOG: ./gradlew updateChangelog
+  4. Build with new version: ./gradlew build
+
+Note: The version is now managed via git tags, not gradle.properties
+"""
+
+        println output
     }
 }
 
