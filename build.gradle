@@ -119,9 +119,89 @@ def gitBasicDateUtc = BASIC_ISO_DATE.format(gitIsoDateUtc)
 // OSGi mandates major.minor.patch.qualifier
 // OSGi permits '-' and '_' within the qualifier, but not at either end
 // OSGi permits no other punctuation or whitespace
-// Read base version from gradle.properties and append build metadata
-// For releases, the version tag determines the actual release version
-def baseVersion = project.hasProperty('version') ? project.property('version') : '1.5.2'
+
+// Version detection priority:
+// 1. Git tag on current commit (HEAD only, not ancestry)
+// 2. Manual override via -PbaseVersion=X.Y.Z (must match a tag on HEAD)
+// 3. Fallback to "dev"
+def baseVersion
+try {
+    // Get all tags pointing at current commit (HEAD only)
+    def tagsOutput = 'git tag --points-at HEAD'.execute().text.trim()
+
+    if (tagsOutput) {
+        // Filter for semantic version tags (vX.Y.Z or X.Y.Z)
+        def versionPattern = /^v?(\d+\.\d+\.\d+)$/
+        def versionTags = tagsOutput.split('\n')
+            .findAll { it =~ versionPattern }
+            .collect { tag ->
+                def matcher = tag =~ versionPattern
+                matcher.matches() ? matcher.group(1) : null
+            }
+            .findAll { it != null }
+
+        if (!versionTags.isEmpty()) {
+            if (project.hasProperty('baseVersion')) {
+                // Manual override - must match one of the tags on HEAD
+                def requestedVersion = project.property('baseVersion')
+                if (versionTags.contains(requestedVersion)) {
+                    baseVersion = requestedVersion
+                    logger.quiet("Using manual version override: ${baseVersion}")
+                } else {
+                    throw new GradleException(
+                        "Manual version override '${requestedVersion}' does not match any version tag on HEAD.\n" +
+                        "Available versions on HEAD: ${versionTags.join(', ')}\n" +
+                        "Use -PbaseVersion=<version> to select one of these versions."
+                    )
+                }
+            } else if (versionTags.size() > 1) {
+                // Multiple tags - require manual selection
+                throw new GradleException(
+                    "Multiple version tags found on HEAD: ${versionTags.join(', ')}\n" +
+                    "Use -PbaseVersion=<version> to select which version to use."
+                )
+            } else {
+                // Single tag - use it
+                baseVersion = versionTags[0]
+                logger.quiet("Using version from git tag on HEAD: ${baseVersion}")
+            }
+        } else {
+            // No semantic version tags on current commit
+            if (project.hasProperty('baseVersion')) {
+                throw new GradleException(
+                    "Manual version override not allowed when HEAD has no version tags.\n" +
+                    "Current HEAD has no semantic version tags (vX.Y.Z)."
+                )
+            }
+            baseVersion = 'dev'
+            logger.quiet("No version tag on HEAD, using: ${baseVersion}")
+        }
+    } else {
+        // No tags at all on current commit
+        if (project.hasProperty('baseVersion')) {
+            throw new GradleException(
+                "Manual version override not allowed when HEAD has no version tags.\n" +
+                "Current HEAD has no tags at all."
+            )
+        }
+        baseVersion = 'dev'
+        logger.quiet("No git tags on HEAD, using: ${baseVersion}")
+    }
+} catch (GradleException e) {
+    // Re-throw GradleException (validation errors)
+    throw e
+} catch (Exception e) {
+    // Git command failed, fall back to "dev"
+    if (project.hasProperty('baseVersion')) {
+        throw new GradleException(
+            "Manual version override not allowed when git tag detection fails.\n" +
+            "Error: ${e.message}"
+        )
+    }
+    baseVersion = 'dev'
+    logger.warn("Failed to read git tags (${e.message}), using: ${baseVersion}")
+}
+
 def yokoVersion = "${baseVersion}.${gitBasicDateUtc.take(8)}_${gitHash.take(10)}"
 
 // set system properties for use in bundle metadata
